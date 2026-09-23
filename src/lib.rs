@@ -716,6 +716,106 @@ impl Registry {
     }
 }
 
+/// Pick one candidate index by `algo`, decoupled from `Upstream`/`Backends` — for a caller whose
+/// candidates aren't HTTP upstreams at all (e.g. a set of tunnelled peer connections), just N
+/// coordinate-identified candidates with weights and health state. `Registry::pick` above is the
+/// `Upstream`-shaped convenience over this same algorithm; this is the shape a second, unrelated
+/// candidate type reuses instead of forking the match arms a second time.
+///
+/// `node_coords`/`weights`/`health`/`active_health` are all the same length (one entry per
+/// candidate) — the caller builds that from its own candidate list. `hash_key_coord` only
+/// matters for [`LoadBalance::Consistent`]. `rr_counter` is the caller's own shared cursor (one
+/// per candidate *set*, not per candidate) so `RoundRobin`/`Random`/`Weighted` spread correctly
+/// across repeated calls.
+///
+/// Fails OPEN: if every candidate is marked down by `active_health`, the algorithm's own pick
+/// still goes through rather than refusing outright — a stale/wrong health-checker must not turn
+/// a real outage into a guaranteed refusal on every request.
+///
+/// Returns `None` only when `node_coords` is empty.
+#[must_use]
+pub fn pick_index(
+    algo: LoadBalance,
+    node_coords: &[u64],
+    weights: &[u32],
+    health: &[Arc<HealthEstimator>],
+    active_health: &[Arc<std::sync::atomic::AtomicBool>],
+    hash_key_coord: u64,
+    rr_counter: &std::sync::atomic::AtomicUsize,
+) -> Option<usize> {
+    if node_coords.is_empty() {
+        return None;
+    }
+    if node_coords.len() == 1 {
+        return Some(0);
+    }
+    let idx = match algo {
+        LoadBalance::RoundRobin => {
+            rr_counter.fetch_add(1, std::sync::atomic::Ordering::Relaxed) % node_coords.len()
+        }
+        LoadBalance::Random => {
+            let seed = rr_counter.fetch_add(1, std::sync::atomic::Ordering::Relaxed) as u64;
+            let now = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_nanos() as u64)
+                .unwrap_or(0);
+            (splitmix64(seed ^ now) as usize) % node_coords.len()
+        }
+        LoadBalance::Weighted => {
+            let total: u64 = weights.iter().map(|&w| u64::from(w)).sum();
+            let seed = rr_counter.fetch_add(1, std::sync::atomic::Ordering::Relaxed) as u64;
+            let now = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_nanos() as u64)
+                .unwrap_or(0);
+            let mut r = splitmix64(seed ^ now) % total.max(1);
+            let mut chosen = 0;
+            for (i, &w) in weights.iter().enumerate() {
+                if r < u64::from(w) {
+                    chosen = i;
+                    break;
+                }
+                r -= u64::from(w);
+            }
+            chosen
+        }
+        LoadBalance::Consistent => {
+            consistent_ring_index(hash_key_coord, node_coords, CONSISTENT_HASH_VNODES)
+        }
+        LoadBalance::Healthiest => health
+            .iter()
+            .enumerate()
+            .min_by(|(_, a), (_, b)| {
+                let av = a.estimate().unwrap_or(f64::MIN);
+                let bv = b.estimate().unwrap_or(f64::MIN);
+                av.partial_cmp(&bv).unwrap_or(std::cmp::Ordering::Equal)
+            })
+            .map(|(i, _)| i)
+            .unwrap_or(0),
+    };
+
+    let idx = if active_health
+        .get(idx)
+        .map(|h| h.load(std::sync::atomic::Ordering::Relaxed))
+        .unwrap_or(true)
+    {
+        idx
+    } else {
+        active_health
+            .iter()
+            .position(|h| h.load(std::sync::atomic::Ordering::Relaxed))
+            .unwrap_or(idx)
+    };
+    Some(idx)
+}
+
+/// Convenience: coordinate a hashable identity the same way every caller here already does
+/// (`hashtrinity::Coord::coord`), so nobody has to import the trait just to call [`pick_index`].
+#[must_use]
+pub fn coord_of<T: Coord>(value: &T) -> u64 {
+    value.coord()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -916,5 +1016,126 @@ mod tests {
                 "a marked-down backend must be skipped"
             );
         }
+    }
+
+    // ── `pick_index`: the non-`Upstream`-shaped algorithm, for candidates like tunnelled peer
+    //    connections that aren't HTTP upstreams at all. ──────────────────────────────────────
+
+    fn health_set(n: usize) -> Vec<Arc<HealthEstimator>> {
+        (0..n).map(|_| Arc::new(HealthEstimator::new())).collect()
+    }
+
+    fn all_up(n: usize) -> Vec<Arc<std::sync::atomic::AtomicBool>> {
+        (0..n)
+            .map(|_| Arc::new(std::sync::atomic::AtomicBool::new(true)))
+            .collect()
+    }
+
+    #[test]
+    fn pick_index_single_candidate_always_wins() {
+        let idx = pick_index(
+            LoadBalance::RoundRobin,
+            &[1],
+            &[1],
+            &health_set(1),
+            &all_up(1),
+            0,
+            &std::sync::atomic::AtomicUsize::new(0),
+        );
+        assert_eq!(idx, Some(0));
+    }
+
+    #[test]
+    fn pick_index_round_robin_cycles_through_every_candidate() {
+        let counter = std::sync::atomic::AtomicUsize::new(0);
+        let coords = [1, 2, 3];
+        let picks: Vec<usize> = (0..6)
+            .map(|_| {
+                pick_index(
+                    LoadBalance::RoundRobin,
+                    &coords,
+                    &[1, 1, 1],
+                    &health_set(3),
+                    &all_up(3),
+                    0,
+                    &counter,
+                )
+                .unwrap()
+            })
+            .collect();
+        assert_eq!(picks, vec![0, 1, 2, 0, 1, 2]);
+    }
+
+    #[test]
+    fn pick_index_healthiest_prefers_the_lower_estimate() {
+        let health = health_set(2);
+        health[0].observe(0.5);
+        health[1].observe(0.05);
+        let idx = pick_index(
+            LoadBalance::Healthiest,
+            &[1, 2],
+            &[1, 1],
+            &health,
+            &all_up(2),
+            0,
+            &std::sync::atomic::AtomicUsize::new(0),
+        );
+        assert_eq!(idx, Some(1));
+    }
+
+    #[test]
+    fn pick_index_untested_candidate_is_treated_as_best() {
+        let health = health_set(2);
+        health[0].observe(0.1);
+        // health[1] never observed -> None -> f64::MIN -> wins.
+        let idx = pick_index(
+            LoadBalance::Healthiest,
+            &[1, 2],
+            &[1, 1],
+            &health,
+            &all_up(2),
+            0,
+            &std::sync::atomic::AtomicUsize::new(0),
+        );
+        assert_eq!(idx, Some(1));
+    }
+
+    #[test]
+    fn pick_index_down_candidate_is_skipped() {
+        let active = all_up(2);
+        active[0].store(false, std::sync::atomic::Ordering::Relaxed);
+        let idx = pick_index(
+            LoadBalance::RoundRobin,
+            &[1, 2],
+            &[1, 1],
+            &health_set(2),
+            &active,
+            0,
+            &std::sync::atomic::AtomicUsize::new(0), // first pick would be index 0, which is down
+        );
+        assert_eq!(idx, Some(1));
+    }
+
+    #[test]
+    fn pick_index_all_down_fails_open_rather_than_returning_none() {
+        let active = all_up(2);
+        active[0].store(false, std::sync::atomic::Ordering::Relaxed);
+        active[1].store(false, std::sync::atomic::Ordering::Relaxed);
+        let idx = pick_index(
+            LoadBalance::RoundRobin,
+            &[1, 2],
+            &[1, 1],
+            &health_set(2),
+            &active,
+            0,
+            &std::sync::atomic::AtomicUsize::new(0),
+        );
+        assert!(idx.is_some(), "must fail open, not refuse every request");
+    }
+
+    #[test]
+    fn coord_of_matches_the_coord_trait_directly() {
+        let s = "route:/api".to_string();
+        assert_eq!(coord_of(&s), s.coord());
     }
 }
