@@ -450,8 +450,10 @@ impl Default for HealthEstimator {
 }
 
 /// splitmix64 — a tiny, dependency-free, well-known mixing step. Not cryptographic; fine for
-/// load-balancing spread, which is all it's used for here.
-fn splitmix64(x: u64) -> u64 {
+/// load-balancing spread, which is all it's used for here. `pub`: bedrock's own session-ID
+/// generator (unrelated to load balancing) reuses this exact function rather than carrying a
+/// second copy of the same four lines.
+pub fn splitmix64(x: u64) -> u64 {
     let x = x.wrapping_add(0x9E37_79B9_7F4A_7C15);
     let z = (x ^ (x >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
     let z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
@@ -517,6 +519,13 @@ impl Backends {
         self.health.push(Arc::new(HealthEstimator::new()));
         self.active_health
             .push(Arc::new(std::sync::atomic::AtomicBool::new(true)));
+    }
+
+    /// The registered upstreams, in registration order — for callers (like a background active
+    /// health-check loop) that need to probe every one directly rather than go through `pick`.
+    #[must_use]
+    pub fn upstreams(&self) -> &[Upstream] {
+        &self.upstreams
     }
 
     /// Select one upstream by `algo`, returning it along with its health estimator so the
