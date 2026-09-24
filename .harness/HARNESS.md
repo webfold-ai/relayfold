@@ -1,4 +1,4 @@
-# Harness — Build and test the relayfold crate extraction
+# Harness — implement a real agent SDK protocol for kernel::Proxy modeled on Zentinel's agent architecture
 
 repo: /home/ctown/projects/relayfold · phase: Planning
 

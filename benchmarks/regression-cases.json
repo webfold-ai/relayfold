@@ -1,0 +1,9 @@
+{
+  "cases": [
+    {"id":"health","method":"GET","path":"/health","expect_status":200},
+    {"id":"tiny","method":"GET","path":"/tiny","expect_status":200,"expect_bytes":0},
+    {"id":"one-kb","method":"GET","path":"/1k","expect_status":200,"expect_bytes":1024},
+    {"id":"one-mb","method":"GET","path":"/1m","expect_status":200,"expect_bytes":1048576},
+    {"id":"missing-route","method":"GET","path":"/__relayfold_missing__","expect_status":404}
+  ]
+}

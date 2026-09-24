@@ -1,0 +1,10 @@
+http:
+  routers:
+    bench:
+      rule: PathPrefix(`/`)
+      service: bench
+  services:
+    bench:
+      loadBalancer:
+        servers:
+          - url: http://127.0.0.1:18081

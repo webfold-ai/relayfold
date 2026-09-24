@@ -1,2 +1,4 @@
 /target
 Cargo.lock
+/benchmarks/results/
+/benchmarks/__pycache__/

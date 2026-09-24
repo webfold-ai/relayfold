@@ -1,0 +1,6 @@
+{
+  "targets": [
+    {"name": "direct", "url": "http://127.0.0.1:18081/1k"},
+    {"name": "biota-relayfold", "url": "http://127.0.0.1:18080/1k"}
+  ]
+}

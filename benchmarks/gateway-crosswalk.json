@@ -1,0 +1,34 @@
+{
+  "schema_version": "1",
+  "purpose": "one workload and capability crosswalk for Rust and incumbent API gateways",
+  "candidates": [
+    {"id":"biota-relayfold","class":"rust-data-plane","http_target":"http://127.0.0.1:18080/1k","source":"benchmarks/biota-proxy"},
+    {"id":"syndesi-conduit","class":"ptyktos-gateway","http_target":null,"source":"/home/ctown/projects/twn-group/syndesi + /home/ctown/projects/conduit"},
+    {"id":"nginx","class":"incumbent","http_target":"http://127.0.0.1:18085/1k","source":"configs/nginx.conf"},
+    {"id":"haproxy","class":"incumbent","http_target":"http://127.0.0.1:18086/1k","source":"configs/haproxy.cfg"},
+    {"id":"envoy","class":"incumbent","http_target":"http://127.0.0.1:18087/1k","source":"configs/envoy.yaml"},
+    {"id":"zentinel","class":"rust-incumbent","http_target":"http://127.0.0.1:18088/1k","source":"configs/zentinel.kdl"},
+    {"id":"pingap","class":"rust-incumbent","http_target":"http://127.0.0.1:18089/1k","source":"vicanso/pingap"},
+    {"id":"apisix","class":"incumbent","http_target":null,"source":"Apache APISIX benchmark cases"},
+    {"id":"kong","class":"incumbent","http_target":null,"source":"Kong gateway performance benchmark"},
+    {"id":"tyk","class":"incumbent","http_target":null,"source":"Tyk Ansible performance suite"},
+    {"id":"agentgateway","class":"inference-gateway","http_target":null,"source":"agentgateway/benchmarks"},
+    {"id":"mcp-gateway","class":"mcp-adapter","http_target":null,"source":"MikkoParkkola/mcp-gateway"},
+    {"id":"mcpjungle","class":"mcp-adapter","http_target":null,"source":"mcpjungle/MCPJungle"},
+    {"id":"supergateway","class":"mcp-transport","http_target":null,"source":"supercorp-ai/supergateway"}
+  ],
+  "scenarios": [
+    {"id":"proxy-floor","plane":"http","method":"GET","payloads":[0,1024],"transports":["h1-keepalive","h1-churn","h2"],"metrics":["offered_rps","completed_rps","completion_fraction","p50","p95","p99","p99_9","errors","cpu","rss"]},
+    {"id":"payload-throughput","plane":"http","method":"GET","payloads":[0,1024,1048576],"transports":["h1-keepalive","tls"],"metrics":["completed_rps","bytes_per_second","p99","cpu","rss"]},
+    {"id":"route-scale","plane":"http","route_sets":[1,36,100,217,609,1000],"metrics":["p99","completed_rps","cpu","rss"]},
+    {"id":"policy-tax","plane":"http","steps":["none","api-key","jwt","rate-limit","audit-metrics","production-combination"],"metrics":["completed_rps","p99","deny_rate","cpu","rss"]},
+    {"id":"security-agents","plane":"http","steps":["waf","zentinelsec","modsec","denylist","bot-management","ip-reputation","graphql","grpc","websocket","content-scanner","spiffe","transform"],"metrics":["allow_rate","deny_rate","false_positive_rate","p99","cpu","rss"]},
+    {"id":"config-churn","plane":"control","steps":["add-route-under-load","replace-policy-under-load","rollback","backend-fail","backend-recover"],"metrics":["propagation_ms","transient_4xx","transient_5xx","rss_after_churn","recovery_ms"]},
+    {"id":"mcp-federation","plane":"mcp","steps":["initialize","tools-list","authorized-call","denied-call","streaming","backend-restart"],"scales":{"tools":[1,10,100,1000],"servers":[1,10,100]},"metrics":["list_bytes","call_p50","call_p95","auth_decision_ms","task_success","cpu","rss"]},
+    {"id":"agent-loop","plane":"agent","steps":["native-action","conduit-call","telos-allow","telos-deny","receipt","retry","backpressure"],"metrics":["decision_ms","dispatch_ms","receipt_ms","task_success","duplicate_actions","cpu","rss"]},
+    {"id":"inference-gateway","plane":"inference","steps":["direct","gateway","gateway-policy","backend-failover"],"metrics":["ttft","input_tokens_s","output_tokens_s","completion","queue_ms","errors","cpu","rss"]},
+    {"id":"transport-native","plane":"transport","steps":["tcp","tls","h2c","h2-tls","native-udp"],"metrics":["handshake_ms","first_byte_ms","completed_rps","p99","cpu","rss"]},
+    {"id":"transport-quic","plane":"transport","steps":["quic-handshake","encrypted-stream","loss-retransmit","congestion","peer-auth"],"metrics":["handshake_ms","stream_rtt_ms","goodput","retransmits","cpu","rss"],"qualification":"transport::quic is a custom authenticated QUIC-like UDP transport; it is not HTTP/3 until an HTTP/3/H3 layer is implemented and tested"}
+  ],
+  "status_vocabulary": ["implemented","adapter","partial","planned","unsupported","blocked","unmeasured"]
+}
