@@ -1,1 +1,0 @@
-{"generator":"k6","rate":1000,"max_vus":256,"duration":"5ss","warmup":"2ss","repeats":2,"targets":[]}

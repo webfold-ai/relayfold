@@ -1,9 +1,0 @@
-{
-  "started_utc": "2026-09-24T11:57:03Z",
-  "host": "ctwn-lpt.corp.tas.twn.network",
-  "platform": "Linux-6.12.90+deb13.1-amd64-x86_64-with-glibc2.41",
-  "cpu_layout": "k6=0,1,2,3,4,5,6,7;gateway=8,9,10,11;upstream=12,13,14,15",
-  "relayfold_revision": "7071305d305bb3ba0eea1adbcea5f52eaf06662a",
-  "target_manifest": "/home/ctown/projects/relayfold/benchmarks/http-targets.local-matrix.json",
-  "target_manifest_sha256": "4786d7fd700619a67a0f2e6e90993eee951c0748b388994ec6af25ce0505cb03"
-}

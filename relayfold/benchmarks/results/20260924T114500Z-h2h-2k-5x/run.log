@@ -1,7 +1,0 @@
-Preflight passed: 8 paths returned HTTP 200 and 1024 bytes
-sang-codspeed: run 7071305:1156577 (binary=relayfold-gateway, warmup=0, runs=1)
-relayfold-gateway (cd '/home/ctown/projects/relayfold' && benchmarks/run_k6_campaign.sh 'benchmarks/http-targets.local-matrix.json' --rates '2000' --duration '5s' --output '/home/ctown/projects/relayfold/benchmarks/results/20260924T114500Z-h2h-2k-5x' --warmup '2s' --repeats '5' --vus '256')
-  time:   [330.4360 s 330.4360 s 330.4360 s]
-  enqueued 7071305:1156577 for hexis processing
-  done — stored as 7071305:1156577
-campaign contains invalid measurements; inspect /home/ctown/projects/relayfold/benchmarks/results/20260924T114500Z-h2h-2k-5x/manifest.json and per-run summaries
