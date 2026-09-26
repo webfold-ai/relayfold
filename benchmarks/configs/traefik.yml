@@ -1,7 +1,0 @@
-entryPoints:
-  web:
-    address: ":18090"
-providers:
-  file:
-    filename: /etc/traefik/dynamic.yml
-    watch: false
