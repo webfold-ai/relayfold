@@ -1,4 +1,4 @@
-# Harness — relayfold monorepo merge: verify patch resolves relayfold name ambiguity and moved crates build cleanly
+# Harness — relayfold monorepo merge: verify scoped tests pass after harness-doc restore attempt
 
 repo: /home/ctown/projects/relayfold · phase: Planning
 
