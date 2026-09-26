@@ -1,0 +1,37 @@
+[2m2026-09-24T09:13:19.669266Z[0m [32m INFO[0m [2mzentinel[0m[2m:[0m Loading configuration from: /etc/zentinel/zentinel.kdl
+[2m2026-09-24T09:13:19.671039Z[0m [32m INFO[0m [2mzentinel_proxy::proxy[0m[2m:[0m Starting Zentinel Proxy
+[2m2026-09-24T09:13:19.672249Z[0m [32m INFO[0m [2mzentinel_config[0m[2m:[0m Configuration loaded successfully [3mpath[0m[2m=[0m/etc/zentinel/zentinel.kdl [3mroutes[0m[2m=[0m1 [3mupstreams[0m[2m=[0m1 [3magents[0m[2m=[0m0 [3mlisteners[0m[2m=[0m1
+[2m2026-09-24T09:13:19.673230Z[0m [33m WARN[0m [2mzentinel_config::validation[0m[2m:[0m Unwired feature: Logging level='warn' and format='json' are configured but the tracing subscriber uses RUST_LOG env var and --verbose flag instead. Set RUST_LOG=warn as a workaround.
+[2m2026-09-24T09:13:19.673350Z[0m [32m INFO[0m [2mzentinel_proxy::reload[0m[2m:[0m Initializing configuration manager [3mconfig_path[0m[2m=[0m/etc/zentinel/zentinel.kdl [3mroute_count[0m[2m=[0m1 [3mupstream_count[0m[2m=[0m1 [3mlistener_count[0m[2m=[0m1
+[2m2026-09-24T09:13:19.673367Z[0m [32m INFO[0m [2mzentinel_proxy::reload[0m[2m:[0m Adding configuration validator: RouteValidator
+[2m2026-09-24T09:13:19.673703Z[0m [32m INFO[0m [2mzentinel_proxy::reload[0m[2m:[0m Adding configuration validator: UpstreamValidator
+[2m2026-09-24T09:13:19.674102Z[0m [32m INFO[0m [2mzentinel_proxy::routing[0m[2m:[0m Initializing route matcher [3mroute_count[0m[2m=[0m1 [3mdefault_route[0m[2m=[0mNone
+[2m2026-09-24T09:13:19.675499Z[0m [32m INFO[0m [2mzentinel_proxy::routing[0m[2m:[0m Route matcher initialized [3mcompiled_routes[0m[2m=[0m1 [3mneeds_headers[0m[2m=[0mfalse [3mneeds_query_params[0m[2m=[0mfalse
+[2m2026-09-24T09:13:19.676662Z[0m [32m INFO[0m [2mzentinel_proxy::routing[0m[2m:[0m Initializing route matcher [3mroute_count[0m[2m=[0m1 [3mdefault_route[0m[2m=[0mNone
+[2m2026-09-24T09:13:19.676681Z[0m [32m INFO[0m [2mzentinel_proxy::routing[0m[2m:[0m Route matcher initialized [3mcompiled_routes[0m[2m=[0m1 [3mneeds_headers[0m[2m=[0mfalse [3mneeds_query_params[0m[2m=[0mfalse
+[2m2026-09-24T09:13:19.676991Z[0m [32m INFO[0m [2mzentinel_proxy::upstream[0m[2m:[0m Creating upstream pool [3mupstream_id[0m[2m=[0mbackend [3mtarget_count[0m[2m=[0m1 [3malgorithm[0m[2m=[0mRoundRobin
+[2m2026-09-24T09:13:19.679628Z[0m [32m INFO[0m [2mzentinel_proxy::upstream[0m[2m:[0m Upstream pool created successfully [3mupstream_id[0m[2m=[0mbackend [3mtarget_count[0m[2m=[0m1
+[2m2026-09-24T09:13:19.680997Z[0m [32m INFO[0m [2mzentinel_proxy::upstream[0m[2m:[0m Creating upstream pool [3mupstream_id[0m[2m=[0mbackend [3mtarget_count[0m[2m=[0m1 [3malgorithm[0m[2m=[0mRoundRobin
+[2m2026-09-24T09:13:19.681015Z[0m [32m INFO[0m [2mzentinel_proxy::upstream[0m[2m:[0m Upstream pool created successfully [3mupstream_id[0m[2m=[0mbackend [3mtarget_count[0m[2m=[0m1
+[2m2026-09-24T09:13:19.682333Z[0m [32m INFO[0m [2mzentinel_proxy::proxy[0m[2m:[0m Created 1 scoped upstream pools
+[2m2026-09-24T09:13:19.683746Z[0m [32m INFO[0m [2mzentinel_proxy::agents::manager[0m[2m:[0m Creating agent manager [3magent_count[0m[2m=[0m0
+[2m2026-09-24T09:13:19.683755Z[0m [32m INFO[0m [2mzentinel_proxy::agents::manager[0m[2m:[0m Agent manager created successfully with per-agent queue isolation [3mconfigured_agents[0m[2m=[0m0
+[2m2026-09-24T09:13:19.683760Z[0m [32m INFO[0m [2mzentinel_proxy::agents::manager[0m[2m:[0m Initializing agent connections [3magent_count[0m[2m=[0m0
+[2m2026-09-24T09:13:19.683763Z[0m [32m INFO[0m [2mzentinel_proxy::agents::manager[0m[2m:[0m Agent initialization complete [3minitialized[0m[2m=[0m0 [3mfailed[0m[2m=[0m0 [3mtotal[0m[2m=[0m0
+[2m2026-09-24T09:13:19.688030Z[0m [32m INFO[0m [2mzentinel_proxy::proxy[0m[2m:[0m Initializing components for route: benchmark with service type: Web
+[2m2026-09-24T09:13:19.688535Z[0m [32m INFO[0m [2mzentinel_proxy::proxy[0m[2m:[0m Error logging enabled
+[2m2026-09-24T09:13:19.688756Z[0m [32m INFO[0m [2mzentinel_proxy::reload[0m[2m:[0m Adding reload hook: audit_reload_hook
+[2m2026-09-24T09:13:19.689289Z[0m [32m INFO[0m [2mzentinel_proxy::proxy[0m[2m:[0m Started periodic cleanup task [3minterval_secs[0m[2m=[0m300
+[2m2026-09-24T09:13:19.689312Z[0m [32m INFO[0m [2mzentinel_proxy::proxy[0m[2m:[0m Started geo database file watcher
+[2m2026-09-24T09:13:19.689317Z[0m [32m INFO[0m [2mzentinel_proxy::app[0m[2m:[0m Application marked as ready
+[2m2026-09-24T09:13:19.690555Z[0m [32m INFO[0m [2mzentinel[0m[2m:[0m Metrics server disabled (observability.metrics.enabled = false)
+[2m2026-09-24T09:13:19.690922Z[0m [32m INFO[0m [2mzentinel[0m[2m:[0m Configuring Pingora server [3mworker_threads[0m[2m=[0m6 [3mupstream_pool_size[0m[2m=[0m256 [3mgraceful_shutdown_timeout_secs[0m[2m=[0m30 [3mpid_file[0m[2m=[0mNone [3muser[0m[2m=[0mNone [3mgroup[0m[2m=[0mNone
+[2m2026-09-24T09:13:19.691437Z[0m [32m INFO[0m [2mpingora_core::server::bootstrap_services[0m[2m:[0m Bootstrap starting
+[2m2026-09-24T09:13:19.691446Z[0m [32m INFO[0m [2mpingora_core::server::bootstrap_services[0m[2m:[0m Bootstrap done
+[2m2026-09-24T09:13:19.705694Z[0m [32m INFO[0m [2mzentinel[0m[2m:[0m HTTP listening on: 127.0.0.1:18088
+[2m2026-09-24T09:13:19.705745Z[0m [32m INFO[0m [2mzentinel[0m[2m:[0m Zentinel proxy started successfully
+[2m2026-09-24T09:13:19.705751Z[0m [32m INFO[0m [2mzentinel[0m[2m:[0m Configuration hot reload enabled (SIGHUP)
+[2m2026-09-24T09:13:19.705756Z[0m [32m INFO[0m [2mzentinel[0m[2m:[0m Graceful shutdown enabled (SIGTERM/SIGINT)
+[2m2026-09-24T09:13:19.705763Z[0m [32m INFO[0m [2mpingora_core::server[0m[2m:[0m Server starting
+[2m2026-09-24T09:13:19.706124Z[0m [32m INFO[0m [2mpingora_core::server[0m[2m:[0m Starting services in dependency order: ["Zentinel Proxy"]
+[2m2026-09-24T09:13:19.706153Z[0m [32m INFO[0m [2mpingora_core::server[0m[2m:[0m Starting service: Zentinel Proxy

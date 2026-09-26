@@ -1,0 +1,1 @@
+time="2026-09-24T19:13:45+10:00" level=error msg="could not initialize 'benchmarks/k6_gateway.js': could not load JS test 'file:///home/ctown/projects/relayfold/benchmarks/k6_gateway.js': time: unknown unit \"ss\" in duration \"5ss\""

@@ -1,0 +1,61 @@
+# Every key here is read by relayfold-proxy-runtime as an env var (see templates/deployment.yaml
+# for the exact mapping) or consumed directly by a template. Validate any edited copy of this
+# file with `relayfold-chart-tool validate <file>` before `helm install`/`helm upgrade` — it
+# checks the same shape this chart's templates assume, so a typo'd key fails here instead of as a
+# crash-looping pod.
+
+replicaCount: 2
+
+# One of: round_robin, random, weighted, consistent, healthiest — see relayfold's own
+# LoadBalance enum. Maps straight to relayfold-proxy-runtime's LOAD_BALANCE env var.
+loadBalance: round_robin
+
+image:
+  repository: ghcr.io/ptyktos/relayfold-proxy
+  tag: "0.1.0"
+  pullPolicy: IfNotPresent
+
+# The single upstream every request is forwarded to (relayfold-proxy-runtime registers it under
+# the wildcard route "*" — see proxy-runtime/src/main.rs). A real multi-upstream/multi-route setup
+# needs proxy-runtime's own config surface extended past env vars; disclosed as out of scope here.
+upstream:
+  host: "upstream.internal"
+  port: 8081
+  scheme: http
+
+service:
+  type: ClusterIP
+  port: 8080
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 64Mi
+  limits:
+    cpu: 500m
+    memory: 256Mi
+
+autoscaling:
+  enabled: false
+  minReplicas: 2
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 70
+
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+  hosts:
+    - host: relayfold-proxy.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+  # - secretName: relayfold-proxy-tls
+  #   hosts:
+  #     - relayfold-proxy.example.com
+
+podAnnotations: {}
+nodeSelector: {}
+tolerations: []
+affinity: {}

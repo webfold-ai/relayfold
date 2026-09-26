@@ -1,0 +1,16 @@
+[package]
+name = "relayfold-chart-tool"
+version = "0.1.0"
+edition = "2021"
+description = "Rust CLI for relayfold-helm: validates chart/relayfold-proxy/values.yaml against the real schema relayfold-proxy-runtime actually reads (env vars derived from these same keys), and renders typed environment presets — instead of hand-edited YAML or Helm's own Go-template logic for anything beyond plain substitution."
+license = "Apache-2.0"
+
+[[bin]]
+name = "relayfold-chart-tool"
+path = "src/main.rs"
+
+[dependencies]
+# `hex`/`base64` are not truly optional despite being listed features: hashtrinity's own
+# `crypto.rs` is unconditionally compiled and unconditionally imports both — the same disclosed
+# upstream gap relayfold's and relayfold-agents' Cargo.toml already documented.
+hashtrinity = { git = "https://gitlab.tas.twn.network/twn/ptyktos/hashtrinity.git", branch = "main", default-features = false, features = ["codec", "hex", "base64"] }

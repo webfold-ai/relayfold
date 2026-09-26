@@ -1,0 +1,59 @@
+
+         /\      Grafana   /‾‾/  
+    /\  /  \     |\  __   /  /   
+   /  \/    \    | |/ /  /   ‾‾\ 
+  /          \   |   (  |  (‾)  |
+ / __________ \  |_|\_\  \_____/ 
+
+     execution: local
+        script: benchmarks/k6_gateway.js
+        output: -
+
+     scenarios: (100.00%) 1 scenario, 1000 max VUs, 5s max duration (incl. graceful stop):
+              * gateway: 10000.00 iterations/s for 5s (maxVUs: 1000)
+
+
+running (0.8s), 1000/1000 VUs, 833 complete and 0 interrupted iterations
+gateway   [  16% ] 1000/1000 VUs  0.8s/5s  10000.00 iters/s
+
+running (1.8s), 1000/1000 VUs, 1666 complete and 0 interrupted iterations
+gateway   [  36% ] 1000/1000 VUs  1.8s/5s  10000.00 iters/s
+
+running (2.8s), 1000/1000 VUs, 2499 complete and 0 interrupted iterations
+gateway   [  56% ] 1000/1000 VUs  2.8s/5s  10000.00 iters/s
+
+running (3.8s), 1000/1000 VUs, 3332 complete and 0 interrupted iterations
+gateway   [  76% ] 1000/1000 VUs  3.8s/5s  10000.00 iters/s
+
+running (4.8s), 1000/1000 VUs, 4165 complete and 0 interrupted iterations
+gateway   [  96% ] 1000/1000 VUs  4.8s/5s  10000.00 iters/s
+
+     ✗ status 200
+      ↳  0% — ✓ 0 / ✗ 4165
+     ✗ body 1024 bytes
+      ↳  0% — ✓ 0 / ✗ 4165
+
+     bad_body_bytes.............: 4165    829.82832/s
+     bad_status.................: 4165    829.82832/s
+     checks.....................: 0.00%   0 out of 8330
+     data_received..............: 1.0 MB  203 kB/s
+     data_sent..................: 429 kB  86 kB/s
+     dropped_iterations.........: 44841   8934.053228/s
+     http_req_blocked...........: min=50.71µs  avg=23.08ms  med=12.72ms  max=151.77ms p(90)=79.28ms p(95)=92.15ms p(99)=143.48ms p(99.9)=150.94ms
+     http_req_connecting........: min=0s       avg=16.63ms  med=8.25ms   max=135.43ms p(90)=42.6ms  p(95)=82.72ms p(99)=93.31ms  p(99.9)=131.36ms
+     http_req_duration..........: min=103.29ms avg=940.66ms med=981.09ms max=2s       p(90)=1.95s   p(95)=1.96s   p(99)=1.98s    p(99.9)=2s      
+     http_req_failed............: 100.00% 4165 out of 4165
+     http_req_receiving.........: min=14.55µs  avg=4.16ms   med=2.9ms    max=42.93ms  p(90)=9.23ms  p(95)=10.98ms p(99)=16.95ms  p(99.9)=38.36ms 
+     http_req_sending...........: min=9.02µs   avg=1.56ms   med=788.6µs  max=44.51ms  p(90)=3.8ms   p(95)=4.93ms  p(99)=10.71ms  p(99.9)=19.88ms 
+     http_req_tls_handshaking...: min=0s       avg=0s       med=0s       max=0s       p(90)=0s      p(95)=0s      p(99)=0s       p(99.9)=0s      
+     http_req_waiting...........: min=101.2ms  avg=934.93ms med=976.42ms max=2s       p(90)=1.95s   p(95)=1.96s   p(99)=1.97s    p(99.9)=2s      
+     http_reqs..................: 4165    829.82832/s
+     iteration_duration.........: min=128.61ms avg=966.65ms med=997.61ms max=2.02s    p(90)=1.95s   p(95)=1.97s   p(99)=2s       p(99.9)=2.01s   
+     iterations.................: 4165    829.82832/s
+     request_errors.............: 4165    829.82832/s
+     vus........................: 1000    min=1000         max=1000
+     vus_max....................: 1000    min=1000         max=1000
+
+
+running (5.0s), 0000/1000 VUs, 4165 complete and 1000 interrupted iterations
+gateway ✓ [ 100% ] 1000/1000 VUs  5s  10000.00 iters/s

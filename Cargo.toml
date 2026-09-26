@@ -1,14 +1,18 @@
-[package]
-name = "relayfold"
-version = "0.1.0"
-edition = "2021"
-description = "Zanzibar-style temporal relationships + Pingora-shaped load-balancing/health core, extracted for real out of bedrock's native_lib.rs"
-license = "Apache-2.0"
+[workspace]
+resolver = "2"
+members = [
+    "relayfold",
+    "relayfold-convert",
+    "relayfold-agents",
+    "relayfold-control",
+    "relayfold-helm/chart-tool",
+    "relayfold-helm/proxy-runtime",
+]
 
-[dependencies]
-# Only `Coord`/`CoordInv`/`CoordMap`/`PHI` are used here — no codec/validate/syncfold/derive,
-# unlike bedrock's own much larger feature set. `hex`+`base64` are NOT optional in practice
-# despite being listed as features: hashtrinity's own `crypto.rs` is unconditionally compiled
-# and unconditionally imports both, so `default-features = false` without them fails to build
-# hashtrinity itself (an upstream feature-gating gap, not something to route around here).
-hashtrinity = { git = "https://gitlab.tas.twn.network/twn/ptyktos/hashtrinity.git", branch = "main", default-features = false, features = ["hex", "base64"] }
+[patch."https://github.com/Ptyktos/relayfold"]
+# `transport` (pulled in transitively via biota-http-server, a dep of relayfold-control and
+# relayfold-proxy-runtime) still declares `relayfold = { git = "...", branch = "main" }`. Now
+# that relayfold lives locally as a workspace member, that git reference and this path member
+# resolve to the same package name and cargo reports "specification `relayfold` is ambiguous"
+# without this patch redirecting the git source to the local copy.
+relayfold = { path = "relayfold" }

@@ -1,0 +1,14 @@
+[package]
+name = "relayfold-proxy-runtime"
+version = "0.1.0"
+edition = "2021"
+description = "Minimal standalone reverse-proxy binary wiring biota-http-server's real Router/Proxy into a runnable service — biota-http-server ships as a library only, with no binary anywhere in the workspace that actually calls serve(); this is that binary, built so relayfold-helm's chart has something real to deploy."
+license = "Apache-2.0"
+
+[[bin]]
+name = "relayfold-proxy"
+path = "src/main.rs"
+
+[dependencies]
+biota-http-server = { git = "https://github.com/Ptyktos/biota.git" }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "signal"] }

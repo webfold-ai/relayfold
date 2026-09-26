@@ -1,0 +1,16 @@
+{
+  "url": "http://127.0.0.1:18083/mcp",
+  "calls_requested": 20,
+  "status": "passed",
+  "protocol_version": "2025-06-18",
+  "session": true,
+  "tool_count": 17,
+  "list_bytes": 15468,
+  "list_ms": 2.838,
+  "mode": "meta",
+  "search_ms": 2.343,
+  "tool": "gateway_invoke",
+  "call_p50_ms": 5.948,
+  "call_p95_ms": 7.395,
+  "calls_passed": 20
+}

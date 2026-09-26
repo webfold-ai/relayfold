@@ -1,0 +1,315 @@
+{
+  "status": "complete",
+  "started_utc": "2026-09-23T14:54:58.142015+00:00",
+  "host": {
+    "node": "ctwn-lpt.corp.tas.twn.network",
+    "platform": "Linux-6.12.90+deb13.1-amd64-x86_64-with-glibc2.41",
+    "cpu_count": 16
+  },
+  "generator": [
+    "docker",
+    "run",
+    "--rm",
+    "--network",
+    "host",
+    "--entrypoint",
+    "nighthawk_client",
+    "envoyproxy/nighthawk-dev@sha256:41765135df56107e154743f839471bae170f14e4f1de249efd1ca2676095682b"
+  ],
+  "generator_version": "nighthawk_client  version: 0.3.0",
+  "settings": {
+    "rates_aggregate_rps": [
+      100
+    ],
+    "duration_s": 2,
+    "warmup_s": 0,
+    "repeats": 1,
+    "connections": 10,
+    "protocol": "http1",
+    "concurrency": 1
+  },
+  "targets": [
+    {
+      "name": "direct",
+      "url": "http://127.0.0.1:18081/1k",
+      "probe": {
+        "status": 200,
+        "body_bytes": 1024
+      }
+    },
+    {
+      "name": "biota-relayfold",
+      "url": "http://127.0.0.1:18080/1k",
+      "probe": {
+        "status": 200,
+        "body_bytes": 1024
+      }
+    },
+    {
+      "name": "nginx",
+      "url": "http://127.0.0.1:18085/1k",
+      "probe": {
+        "status": 200,
+        "body_bytes": 1024
+      }
+    },
+    {
+      "name": "haproxy",
+      "url": "http://127.0.0.1:18086/1k",
+      "probe": {
+        "status": 200,
+        "body_bytes": 1024
+      }
+    },
+    {
+      "name": "envoy",
+      "url": "http://127.0.0.1:18087/1k",
+      "probe": {
+        "status": 200,
+        "body_bytes": 1024
+      }
+    },
+    {
+      "name": "zentinel",
+      "url": "http://127.0.0.1:18088/1k",
+      "probe": {
+        "status": 200,
+        "body_bytes": 1024
+      }
+    },
+    {
+      "name": "pingap",
+      "url": "http://127.0.0.1:18089/1k",
+      "probe": {
+        "status": 200,
+        "body_bytes": 1024
+      }
+    }
+  ],
+  "runs": [
+    {
+      "target": "direct",
+      "offered_rps": 100,
+      "repeat": 1,
+      "command": [
+        "docker",
+        "run",
+        "--rm",
+        "--network",
+        "host",
+        "--entrypoint",
+        "nighthawk_client",
+        "envoyproxy/nighthawk-dev@sha256:41765135df56107e154743f839471bae170f14e4f1de249efd1ca2676095682b",
+        "--open-loop",
+        "--concurrency",
+        "1",
+        "--connections",
+        "10",
+        "--rps",
+        "100",
+        "--duration",
+        "2",
+        "--protocol",
+        "http1",
+        "--output-format",
+        "json",
+        "http://127.0.0.1:18081/1k"
+      ],
+      "raw_file": "direct_http1_100rps_run1.json",
+      "elapsed_s": 2.875,
+      "exit_code": 0
+    },
+    {
+      "target": "biota-relayfold",
+      "offered_rps": 100,
+      "repeat": 1,
+      "command": [
+        "docker",
+        "run",
+        "--rm",
+        "--network",
+        "host",
+        "--entrypoint",
+        "nighthawk_client",
+        "envoyproxy/nighthawk-dev@sha256:41765135df56107e154743f839471bae170f14e4f1de249efd1ca2676095682b",
+        "--open-loop",
+        "--concurrency",
+        "1",
+        "--connections",
+        "10",
+        "--rps",
+        "100",
+        "--duration",
+        "2",
+        "--protocol",
+        "http1",
+        "--output-format",
+        "json",
+        "http://127.0.0.1:18080/1k"
+      ],
+      "raw_file": "biota-relayfold_http1_100rps_run1.json",
+      "elapsed_s": 2.879,
+      "exit_code": 0
+    },
+    {
+      "target": "nginx",
+      "offered_rps": 100,
+      "repeat": 1,
+      "command": [
+        "docker",
+        "run",
+        "--rm",
+        "--network",
+        "host",
+        "--entrypoint",
+        "nighthawk_client",
+        "envoyproxy/nighthawk-dev@sha256:41765135df56107e154743f839471bae170f14e4f1de249efd1ca2676095682b",
+        "--open-loop",
+        "--concurrency",
+        "1",
+        "--connections",
+        "10",
+        "--rps",
+        "100",
+        "--duration",
+        "2",
+        "--protocol",
+        "http1",
+        "--output-format",
+        "json",
+        "http://127.0.0.1:18085/1k"
+      ],
+      "raw_file": "nginx_http1_100rps_run1.json",
+      "elapsed_s": 2.856,
+      "exit_code": 0
+    },
+    {
+      "target": "haproxy",
+      "offered_rps": 100,
+      "repeat": 1,
+      "command": [
+        "docker",
+        "run",
+        "--rm",
+        "--network",
+        "host",
+        "--entrypoint",
+        "nighthawk_client",
+        "envoyproxy/nighthawk-dev@sha256:41765135df56107e154743f839471bae170f14e4f1de249efd1ca2676095682b",
+        "--open-loop",
+        "--concurrency",
+        "1",
+        "--connections",
+        "10",
+        "--rps",
+        "100",
+        "--duration",
+        "2",
+        "--protocol",
+        "http1",
+        "--output-format",
+        "json",
+        "http://127.0.0.1:18086/1k"
+      ],
+      "raw_file": "haproxy_http1_100rps_run1.json",
+      "elapsed_s": 2.871,
+      "exit_code": 0
+    },
+    {
+      "target": "envoy",
+      "offered_rps": 100,
+      "repeat": 1,
+      "command": [
+        "docker",
+        "run",
+        "--rm",
+        "--network",
+        "host",
+        "--entrypoint",
+        "nighthawk_client",
+        "envoyproxy/nighthawk-dev@sha256:41765135df56107e154743f839471bae170f14e4f1de249efd1ca2676095682b",
+        "--open-loop",
+        "--concurrency",
+        "1",
+        "--connections",
+        "10",
+        "--rps",
+        "100",
+        "--duration",
+        "2",
+        "--protocol",
+        "http1",
+        "--output-format",
+        "json",
+        "http://127.0.0.1:18087/1k"
+      ],
+      "raw_file": "envoy_http1_100rps_run1.json",
+      "elapsed_s": 2.909,
+      "exit_code": 0
+    },
+    {
+      "target": "zentinel",
+      "offered_rps": 100,
+      "repeat": 1,
+      "command": [
+        "docker",
+        "run",
+        "--rm",
+        "--network",
+        "host",
+        "--entrypoint",
+        "nighthawk_client",
+        "envoyproxy/nighthawk-dev@sha256:41765135df56107e154743f839471bae170f14e4f1de249efd1ca2676095682b",
+        "--open-loop",
+        "--concurrency",
+        "1",
+        "--connections",
+        "10",
+        "--rps",
+        "100",
+        "--duration",
+        "2",
+        "--protocol",
+        "http1",
+        "--output-format",
+        "json",
+        "http://127.0.0.1:18088/1k"
+      ],
+      "raw_file": "zentinel_http1_100rps_run1.json",
+      "elapsed_s": 2.87,
+      "exit_code": 0
+    },
+    {
+      "target": "pingap",
+      "offered_rps": 100,
+      "repeat": 1,
+      "command": [
+        "docker",
+        "run",
+        "--rm",
+        "--network",
+        "host",
+        "--entrypoint",
+        "nighthawk_client",
+        "envoyproxy/nighthawk-dev@sha256:41765135df56107e154743f839471bae170f14e4f1de249efd1ca2676095682b",
+        "--open-loop",
+        "--concurrency",
+        "1",
+        "--connections",
+        "10",
+        "--rps",
+        "100",
+        "--duration",
+        "2",
+        "--protocol",
+        "http1",
+        "--output-format",
+        "json",
+        "http://127.0.0.1:18089/1k"
+      ],
+      "raw_file": "pingap_http1_100rps_run1.json",
+      "elapsed_s": 2.872,
+      "exit_code": 0
+    }
+  ]
+}

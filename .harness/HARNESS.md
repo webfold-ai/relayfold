@@ -1,4 +1,4 @@
-# Harness — implement a real agent SDK protocol for kernel::Proxy modeled on Zentinel's agent architecture
+# Harness — relayfold monorepo merge: verify patch resolves relayfold name ambiguity and moved crates build cleanly
 
 repo: /home/ctown/projects/relayfold · phase: Planning
 

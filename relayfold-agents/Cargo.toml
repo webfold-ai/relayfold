@@ -1,0 +1,19 @@
+[package]
+name = "relayfold-agents"
+version = "0.1.0"
+edition = "2021"
+description = "A real, crash-isolated external agent protocol + Rust SDK for relayfold-based proxies — the piece zentinel's agent-protocol/agent-rust-sdk cover, ported as an original implementation (not their code) since our proxy shape differs"
+license = "Apache-2.0"
+
+[dependencies]
+# `codec` for SyntaxTerm/Surface::Json (the wire format — see WHY-NOT-SERDE_JSON in lib.rs),
+# `base64` to carry request/response bodies as JSON-safe strings. `hex` is NOT optional in
+# practice despite being a listed feature: hashtrinity's own `crypto.rs` is unconditionally
+# compiled and unconditionally imports both `hex` and `base64` (same upstream gap relayfold's
+# own Cargo.toml already disclosed) — `default-features = false` without them fails to build
+# hashtrinity itself.
+hashtrinity = { git = "https://gitlab.tas.twn.network/twn/ptyktos/hashtrinity.git", branch = "main", default-features = false, features = ["codec", "base64", "hex"] }
+tokio = { version = "1", default-features = false, features = ["net", "io-util", "rt", "rt-multi-thread", "macros", "sync", "time"] }
+
+[dev-dependencies]
+tokio = { version = "1", features = ["full"] }

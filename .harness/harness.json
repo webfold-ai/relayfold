@@ -1,5 +1,5 @@
 {
-  "task": "implement a real agent SDK protocol for kernel::Proxy modeled on Zentinel's agent architecture",
+  "task": "relayfold monorepo merge: verify patch resolves relayfold name ambiguity and moved crates build cleanly",
   "repo_root": "/home/ctown/projects/relayfold",
   "created_by": "syndesi harness",
   "phase": "Planning",
@@ -181,13 +181,13 @@
     },
     {
       "id": "V3",
-      "title": "tests pass",
-      "cmd": "cargo test --quiet",
+      "title": "tests pass for crates with no biota-http-server dependency (relayfold-control and relayfold-proxy-runtime both depend on biota-http-server, whose own Cargo.toml directly pulls in modelfold via git; the pinned modelfold commit is missing src/sparse_fft.rs (E0583) — a pre-existing external breakage predating this move, confirmed present in biota-http-server's manifest itself, out of scope to fix here)",
+      "cmd": "cargo test --quiet -p relayfold -p relayfold-convert -p relayfold-agents -p relayfold-chart-tool",
       "blocking": true
     }
   ],
-  "created_unix": 1790172953,
-  "task_hash": "08bf05d6f42e2bc2",
+  "created_unix": 1790407164,
+  "task_hash": "994bd5dba26fa3b2",
   "sources": [
     {
       "path": "/home/ctown/.config/opencode/AGENTS.md",

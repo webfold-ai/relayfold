@@ -1,0 +1,15 @@
+[package]
+name = "relayfold-control"
+version = "0.1.0"
+edition = "2021"
+description = "A real fleet-management control plane for relayfold-based proxy instances: registry, heartbeat/health, and config push — built on biota-http-server + sangdb, not Elixir/Phoenix"
+license = "Apache-2.0"
+
+[dependencies]
+hashtrinity = { git = "https://gitlab.tas.twn.network/twn/ptyktos/hashtrinity.git", branch = "main", default-features = false, features = ["codec", "derive", "hex", "base64"] }
+sangdb = { git = "https://github.com/Ptyktos/sangdb.git" }
+biota-http-server = { git = "https://github.com/Ptyktos/biota.git", package = "biota-http-server" }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "sync", "time", "io-util"] }
+
+[dev-dependencies]
+tokio = { version = "1", features = ["full"] }

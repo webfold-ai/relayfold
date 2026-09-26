@@ -1,0 +1,11 @@
+apiVersion: v2
+name: relayfold-proxy
+description: A Helm chart deploying relayfold-proxy-runtime — a minimal reverse proxy over biota-http-server's real Router/Proxy (relayfold's LoadBalance/HealthEstimator underneath).
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+home: https://github.com/Ptyktos/relayfold-helm
+sources:
+  - https://github.com/Ptyktos/relayfold-helm
+  - https://github.com/Ptyktos/relayfold
+  - https://github.com/Ptyktos/biota

@@ -1,0 +1,14 @@
+[package]
+name = "relayfold"
+version = "0.1.0"
+edition = "2021"
+description = "Zanzibar-style temporal relationships + Pingora-shaped load-balancing/health core, extracted for real out of bedrock's native_lib.rs"
+license = "Apache-2.0"
+
+[dependencies]
+# Only `Coord`/`CoordInv`/`CoordMap`/`PHI` are used here — no codec/validate/syncfold/derive,
+# unlike bedrock's own much larger feature set. `hex`+`base64` are NOT optional in practice
+# despite being listed as features: hashtrinity's own `crypto.rs` is unconditionally compiled
+# and unconditionally imports both, so `default-features = false` without them fails to build
+# hashtrinity itself (an upstream feature-gating gap, not something to route around here).
+hashtrinity = { git = "https://gitlab.tas.twn.network/twn/ptyktos/hashtrinity.git", branch = "main", default-features = false, features = ["hex", "base64"] }

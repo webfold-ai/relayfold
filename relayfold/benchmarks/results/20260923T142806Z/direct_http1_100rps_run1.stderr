@@ -1,0 +1,66 @@
+[14:28:10.160328][1][I] Starting 1 threads / event loops. Time limit: 3 seconds.
+[14:28:10.160435][1][I] Global targets: 10 connections and 100 calls per second.
+[14:28:10.170645][1][I] goo.gle/debugonly    
+
+[14:28:10.211682][1][E] goo.gle/debugstr  
+static_resources {
+  clusters {
+    name: "0"
+    type: STATIC
+    connect_timeout {
+      seconds: 30
+    }
+    circuit_breakers {
+      thresholds {
+        max_connections {
+          value: 10
+        }
+        max_pending_requests {
+          value: 1
+        }
+        max_requests {
+          value: 100
+        }
+        max_retries {
+        }
+      }
+    }
+    load_assignment {
+      cluster_name: "0"
+      endpoints {
+        lb_endpoints {
+          endpoint {
+            address {
+              socket_address {
+                address: "127.0.0.1"
+                port_value: 18081
+              }
+            }
+          }
+        }
+      }
+    }
+    typed_extension_protocol_options {
+      key: "envoy.extensions.upstreams.http.v3.HttpProtocolOptions"
+      value {
+        [type.googleapis.com/envoy.extensions.upstreams.http.v3.HttpProtocolOptions] {
+          common_http_protocol_options {
+            max_requests_per_connection {
+              value: 4294937295
+            }
+          }
+          explicit_http_config {
+            http_protocol_options {
+            }
+          }
+        }
+      }
+    }
+  }
+}
+stats_flush_interval {
+  seconds: 5
+}
+
+[14:28:13.721687][11][I] Stopping after 3000 ms. Initiated: 300 / Completed: 296. (Completion rate was 98.66660088893273 per second.)
+[14:28:13.880253][1][I] Done.

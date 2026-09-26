@@ -1,0 +1,21 @@
+[package]
+name = "relayfold-convert"
+version = "0.1.0"
+edition = "2021"
+description = "Convert a real, bounded subset of nginx and HAProxy configs into relayfold's own YAML route format — the zentinel-convert gap, filled honestly (two real parsers, not six fake ones)"
+license = "Apache-2.0"
+
+[dependencies]
+# `codec` for SyntaxTerm/Surface::Yaml (the config format — see the module doc for why not
+# serde_yaml). `hex`+`base64` are NOT optional in practice despite being listed features:
+# hashtrinity's own `crypto.rs` is unconditionally compiled and unconditionally imports both
+# (the same upstream gap relayfold's own Cargo.toml already disclosed).
+hashtrinity = { git = "https://gitlab.tas.twn.network/twn/ptyktos/hashtrinity.git", branch = "main", default-features = false, features = ["codec", "hex", "base64"] }
+
+[lib]
+name = "relayfold_convert"
+path = "src/lib.rs"
+
+[[bin]]
+name = "relayfold-convert"
+path = "src/main.rs"
