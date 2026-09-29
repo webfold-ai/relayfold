@@ -10,5 +10,5 @@ name = "relayfold-proxy"
 path = "src/main.rs"
 
 [dependencies]
-biota-http-server = { git = "https://github.com/Ptyktos/biota.git" }
+biota-http-server = { git = "https://github.com/Ptyktos/biota" }
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "signal"] }
