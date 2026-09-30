@@ -35,7 +35,29 @@ async fn main() {
         _ => LoadBalance::RoundRobin,
     };
 
-    println!("relayfold-proxy listening on {listen_addr}, forwarding to {upstream_scheme}://{upstream_host}:{upstream_port}");
+    // Optional edge TLS: set both TLS_CERT_PEM_PATH + TLS_KEY_PEM_PATH and the
+    // proxy terminates TLS itself on LISTEN_ADDR (fullchain PEM + PKCS8 key —
+    // certbot's privkey.pem is exactly that). Unset = plain HTTP (loopback
+    // behind a TLS front, or k8s where the ingress terminates). This is the
+    // ptyktos-relay recipe's direct-ACME-edge shape: TLS at the node, no
+    // tunnel, no third party in the data path.
+    let tls = match (
+        env::var("TLS_CERT_PEM_PATH").ok(),
+        env::var("TLS_KEY_PEM_PATH").ok(),
+    ) {
+        (Some(cert_path), Some(key_path)) => {
+            let chain = std::fs::read_to_string(&cert_path)
+                .unwrap_or_else(|e| panic!("TLS_CERT_PEM_PATH unreadable: {e}"));
+            let key = std::fs::read_to_string(&key_path)
+                .unwrap_or_else(|e| panic!("TLS_KEY_PEM_PATH unreadable: {e}"));
+            Some(biota_http_server::tls_server_config(&chain, &key)
+                .expect("invalid TLS cert/key PEM"))
+        }
+        (None, None) => None,
+        (cert, key) => panic!("TLS_CERT_PEM_PATH and TLS_KEY_PEM_PATH must be set together (got cert={cert:?}, key={key:?})"),
+    };
+
+    println!("relayfold-proxy listening on {listen_addr} (tls: {}), forwarding to {upstream_scheme}://{upstream_host}:{upstream_port}", tls.is_some());
 
     let upstream = if upstream_scheme == "https" {
         Upstream::https(upstream_host, upstream_port)
@@ -52,7 +74,12 @@ async fn main() {
             async move { proxy.handle(req).await }
         });
 
-    biota_http_server::serve(listen_addr, router)
-        .await
-        .expect("serve failed");
+    match tls {
+        Some(tls_config) => biota_http_server::serve_tls(listen_addr, router, tls_config)
+            .await
+            .expect("serve_tls failed"),
+        None => biota_http_server::serve(listen_addr, router)
+            .await
+            .expect("serve failed"),
+    }
 }
