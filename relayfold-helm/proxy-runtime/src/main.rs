@@ -57,14 +57,55 @@ async fn main() {
         (cert, key) => panic!("TLS_CERT_PEM_PATH and TLS_KEY_PEM_PATH must be set together (got cert={cert:?}, key={key:?})"),
     };
 
-    println!("relayfold-proxy listening on {listen_addr} (tls: {}), forwarding to {upstream_scheme}://{upstream_host}:{upstream_port}", tls.is_some());
+    // Horizontal scaling: UPSTREAMS is a comma-separated backend pool
+    // ("http://10.0.60.20:8080,http://10.0.60.21:8080") — every entry registers
+    // under the wildcard route and the LB algorithm picks per request. The
+    // single UPSTREAM_HOST/PORT vars remain the one-backend fallback (and are
+    // how the k8s chart + docker-compose single-node deploys configure it).
+    let mut upstream_addrs: Vec<String> = env_or("UPSTREAMS", "")
+        .split(',')
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+        .collect();
+    if upstream_addrs.is_empty() {
+        let host = env_or("UPSTREAM_HOST", "127.0.0.1");
+        let port: u16 = env_or("UPSTREAM_PORT", "8081")
+            .parse()
+            .expect("UPSTREAM_PORT must be a valid u16");
+        upstream_addrs.push(format!("{upstream_scheme}://{host}:{port}"));
+    }
 
-    let upstream = if upstream_scheme == "https" {
-        Upstream::https(upstream_host, upstream_port)
-    } else {
-        Upstream::http(upstream_host, upstream_port)
-    };
-    let proxy = Proxy::new().load_balance(lb_algo).upstream("*", upstream);
+    let upstreams: Vec<Upstream> = upstream_addrs
+        .iter()
+        .map(|a| {
+            if let Some(hostport) = a.strip_prefix("https://") {
+                let (h, p) = hostport.rsplit_once(':').unwrap_or((hostport, "443"));
+                Upstream::https(h, p.parse().unwrap_or(443))
+            } else {
+                let a = a.trim_start_matches("http://");
+                let (h, p) = a.rsplit_once(':').unwrap_or((a, "80"));
+                Upstream::http(h, p.parse().unwrap_or(80))
+            }
+        })
+        .collect();
+
+    let mut proxy = Proxy::new().load_balance(lb_algo);
+    for u in &upstreams {
+        proxy = proxy.upstream("*", u.clone());
+    }
+    // Active health probing: every backend GETs HEALTH_CHECK_PATH every
+    // HEALTH_CHECK_INTERVAL_SECS; failures mark it down for pick() — a dead
+    // fleet node stops receiving traffic within one interval without a redeploy.
+    let hc_path = env_or("HEALTH_CHECK_PATH", "/healthz");
+    let hc_secs: u64 = env_or("HEALTH_CHECK_INTERVAL_SECS", "10").parse().unwrap_or(10);
+    proxy.spawn_health_checks(hc_path, std::time::Duration::from_secs(hc_secs.max(1)));
+
+    println!(
+        "relayfold-proxy listening on {listen_addr} (tls: {}), lb {lb_algo:?} across {} upstream(s): {:?}",
+        tls.is_some(),
+        upstreams.len(),
+        upstream_addrs
+    );
 
     let router = Router::new()
         .get("/healthz", |_req: Request| async { Response::ok("ok") })
