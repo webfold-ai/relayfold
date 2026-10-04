@@ -2,13 +2,18 @@
 name = "relayfold-control"
 version = "0.1.0"
 edition = "2021"
-description = "A real fleet-management control plane for relayfold-based proxy instances: registry, heartbeat/health, and config push — built on biota-http-server + sangdb, not Elixir/Phoenix"
+description = "A real fleet-management control plane for relayfold-based proxy instances: registry, heartbeat/health, and config push — built on servelet + sangdb, not Elixir/Phoenix"
 license = "Apache-2.0"
 
 [dependencies]
 hashtrinity = { git = "https://github.com/Ptyktos/hashtrinity", rev = "2c36b995c82c073c71df7c28b14c62665d62cbf0", default-features = false, features = ["codec", "derive", "hex", "base64"] }
 sangdb = { git = "https://github.com/Ptyktos/sangdb" }
-biota-http-server = { git = "https://github.com/Ptyktos/biota", package = "biota-http-server" }
+# The HTTP kernel is servelet (Ptyktos/servelet), pinned by rev per
+# servelet/docs/MIGRATION.md. core/router are the spine; client is the outbound half.
+servelet-core = { git = "https://github.com/Ptyktos/servelet.git", rev = "8b7150ad7873b691442ea5faeeec50f71cc9591f" }
+servelet-router = { git = "https://github.com/Ptyktos/servelet.git", rev = "8b7150ad7873b691442ea5faeeec50f71cc9591f" }
+servelet-client = { git = "https://github.com/Ptyktos/servelet.git", rev = "8b7150ad7873b691442ea5faeeec50f71cc9591f" }
+servelet-h1 = { git = "https://github.com/Ptyktos/servelet.git", rev = "8b7150ad7873b691442ea5faeeec50f71cc9591f" }
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "sync", "time", "io-util"] }
 
 [dev-dependencies]

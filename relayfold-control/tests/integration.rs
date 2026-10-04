@@ -1,4 +1,4 @@
-//! Real, end-to-end tests: no mocked `Db`, no mocked HTTP — a real `biota_http_server::serve`
+//! Real, end-to-end tests: no mocked `Db`, no mocked HTTP — a real `servelet_h1::serve`
 //! instance, a real config-receiving mock instance on a real socket, real `sangdb` disk
 //! persistence across a fresh `AppState`.
 
@@ -18,7 +18,7 @@ async fn spawn_control_plane(data_dir: &std::path::Path) -> String {
     let state = AppState::new(data_dir).await.expect("AppState::new");
     let r = router(state);
     tokio::spawn(async move {
-        let _ = biota_http_server::serve(&addr, r).await;
+        let _ = servelet_h1::serve(&addr, r).await;
     });
     tokio::time::sleep(std::time::Duration::from_millis(80)).await;
     format!("http://127.0.0.1:{port}")
@@ -47,7 +47,7 @@ fn field_str<'a>(term: &'a SyntaxTerm, key: &str) -> &'a str {
 async fn register_then_list_shows_the_real_instance() {
     let dir = tempdir();
     let base = spawn_control_plane(dir.path()).await;
-    let client = biota_http_server::Client::new();
+    let client = servelet_client::Client::new();
 
     let resp = client
         .post(format!("{base}/register"))
@@ -84,7 +84,7 @@ async fn register_then_list_shows_the_real_instance() {
 async fn heartbeat_updates_health_and_config_version() {
     let dir = tempdir();
     let base = spawn_control_plane(dir.path()).await;
-    let client = biota_http_server::Client::new();
+    let client = servelet_client::Client::new();
 
     client
         .post(format!("{base}/register"))
@@ -129,7 +129,7 @@ async fn heartbeat_updates_health_and_config_version() {
 async fn heartbeat_for_an_unregistered_instance_is_a_real_404_not_a_silent_create() {
     let dir = tempdir();
     let base = spawn_control_plane(dir.path()).await;
-    let client = biota_http_server::Client::new();
+    let client = servelet_client::Client::new();
 
     let hb = client
         .post(format!("{base}/heartbeat"))
@@ -137,7 +137,7 @@ async fn heartbeat_for_an_unregistered_instance_is_a_real_404_not_a_silent_creat
         .send()
         .await
         .unwrap();
-    assert_eq!(hb.status(), biota_http_server::StatusCode::NOT_FOUND);
+    assert_eq!(hb.status(), servelet_core::StatusCode::NOT_FOUND);
 
     let list = client
         .get(format!("{base}/instances"))
@@ -158,27 +158,27 @@ async fn heartbeat_for_an_unregistered_instance_is_a_real_404_not_a_silent_creat
 async fn config_push_actually_delivers_to_a_real_mock_instance() {
     let dir = tempdir();
     let base = spawn_control_plane(dir.path()).await;
-    let client = biota_http_server::Client::new();
+    let client = servelet_client::Client::new();
 
-    // A real mock proxy instance: its own biota_http_server::Router, on its own real socket,
+    // A real mock proxy instance: its own servelet_router::Router, on its own real socket,
     // recording whatever config body it actually receives.
     let received: std::sync::Arc<tokio::sync::Mutex<Option<String>>> =
         std::sync::Arc::new(tokio::sync::Mutex::new(None));
     let (mock_addr, mock_port) = next_addr();
     let received_clone = received.clone();
-    let mock_router = biota_http_server::Router::new().post(
+    let mock_router = servelet_router::Router::new().post(
         "/relayfold-control/config",
-        move |req: biota_http_server::Request| {
+        move |req: servelet_core::Request| {
             let received = received_clone.clone();
             async move {
                 let body = String::from_utf8_lossy(req.body()).to_string();
                 *received.lock().await = Some(body);
-                biota_http_server::Response::ok("applied")
+                servelet_core::Response::ok("applied")
             }
         },
     );
     tokio::spawn(async move {
-        let _ = biota_http_server::serve(&mock_addr, mock_router).await;
+        let _ = servelet_h1::serve(&mock_addr, mock_router).await;
     });
     tokio::time::sleep(std::time::Duration::from_millis(80)).await;
 
@@ -225,7 +225,7 @@ async fn config_push_actually_delivers_to_a_real_mock_instance() {
 async fn config_push_to_an_unknown_target_reports_failure_not_success() {
     let dir = tempdir();
     let base = spawn_control_plane(dir.path()).await;
-    let client = biota_http_server::Client::new();
+    let client = servelet_client::Client::new();
 
     let push = client
         .post(format!("{base}/config/push"))

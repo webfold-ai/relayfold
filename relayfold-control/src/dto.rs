@@ -1,5 +1,5 @@
 //! The wire-facing request/response shapes — `#[derive(hashtrinity::Term)]`, decoded/encoded by
-//! `biota_http_server::Json<T>`. Unlike `model::InstanceRecord` these may use `bool`/`Option`
+//! `crate::json::Json<T>`. Unlike `model::InstanceRecord` these may use `bool`/`Option`
 //! freely; `Term`'s field discipline is real typed extraction, not `Collapse`'s storage format.
 
 use hashtrinity::Term;
@@ -61,7 +61,7 @@ pub struct ConfigPushResult {
 /// derive supports; a hand-built array of terms is unambiguous either way.
 pub fn json_array<T: hashtrinity::codec::syntax::AsTerm>(
     items: &[T],
-) -> biota_http_server::Response {
+) -> servelet_core::Response {
     use hashtrinity::codec::syntax::{render_surface, Surface, SyntaxTerm};
     let term = SyntaxTerm::Fourth(
         items
@@ -70,6 +70,6 @@ pub fn json_array<T: hashtrinity::codec::syntax::AsTerm>(
             .collect(),
     );
     let body = render_surface(&term, Surface::Json);
-    biota_http_server::Response::ok(body.into_bytes())
+    servelet_core::Response::ok(body.into_bytes())
         .with_header("content-type", "application/json")
 }

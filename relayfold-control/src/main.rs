@@ -11,7 +11,7 @@ async fn main() -> std::io::Result<()> {
     let state = relayfold_control::AppState::new(&data_dir).await?;
     let router = relayfold_control::router(state);
     println!("relayfold-control listening on {addr}, data dir {data_dir}");
-    biota_http_server::serve(&addr, router)
+    servelet_h1::serve(&addr, router)
         .await
         .map_err(|e| std::io::Error::other(e.to_string()))
 }

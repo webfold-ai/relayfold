@@ -1,6 +1,6 @@
 //! The control plane's real surface: register, heartbeat, list, and push config to a fleet of
-//! relayfold-based proxy instances. Built on `biota_http_server`'s own `Router`/`Client` (this
-//! workspace hand-rolls its HTTP stack; reaching for axum/actix here would mean a second HTTP
+//! relayfold-based proxy instances. Built on `servelet`'s own `Router`/`Client` (this workspace
+//! hand-rolls its HTTP stack; reaching for axum/actix here would mean a second HTTP
 //! implementation living beside the one already in this dependency graph) and `sangdb` for real,
 //! disk-persisted state — a restarted control plane must not forget who was registered.
 
@@ -9,8 +9,10 @@ use crate::dto::{
     RegisterRequest,
 };
 use crate::model::InstanceRecord;
-use biota_http_server::actix::{Json, Responder};
-use biota_http_server::{Client, Request, Response};
+use servelet_client::Client;
+use servelet_core::{Request, Response};
+
+use crate::json::Json;
 use sangdb::Db;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -136,43 +138,43 @@ fn now_unix() -> i64 {
 async fn handle_register(req: Request) -> Response {
     let Ok(Json(body)) = Json::<RegisterRequest>::from_request(&req) else {
         return Response::new(
-            biota_http_server::StatusCode::BAD_REQUEST,
+            servelet_core::StatusCode::BAD_REQUEST,
             "invalid register body",
         );
     };
     let Some(state) = req.extensions().get::<Arc<AppState>>().cloned() else {
         return Response::new(
-            biota_http_server::StatusCode::INTERNAL_SERVER_ERROR,
+            servelet_core::StatusCode::INTERNAL_SERVER_ERROR,
             "state missing",
         );
     };
     let view = state.register(body, now_unix()).await;
-    Json(view).respond_to(&req)
+    Json(view).into_response()
 }
 
 async fn handle_heartbeat(req: Request) -> Response {
     let Ok(Json(body)) = Json::<HeartbeatRequest>::from_request(&req) else {
         return Response::new(
-            biota_http_server::StatusCode::BAD_REQUEST,
+            servelet_core::StatusCode::BAD_REQUEST,
             "invalid heartbeat body",
         );
     };
     let Some(state) = req.extensions().get::<Arc<AppState>>().cloned() else {
         return Response::new(
-            biota_http_server::StatusCode::INTERNAL_SERVER_ERROR,
+            servelet_core::StatusCode::INTERNAL_SERVER_ERROR,
             "state missing",
         );
     };
     match state.heartbeat(body, now_unix()).await {
-        Some(view) => Json(view).respond_to(&req),
-        None => Response::new(biota_http_server::StatusCode::NOT_FOUND, "no such instance"),
+        Some(view) => Json(view).into_response(),
+        None => Response::new(servelet_core::StatusCode::NOT_FOUND, "no such instance"),
     }
 }
 
 async fn handle_list(req: Request) -> Response {
     let Some(state) = req.extensions().get::<Arc<AppState>>().cloned() else {
         return Response::new(
-            biota_http_server::StatusCode::INTERNAL_SERVER_ERROR,
+            servelet_core::StatusCode::INTERNAL_SERVER_ERROR,
             "state missing",
         );
     };
@@ -182,13 +184,13 @@ async fn handle_list(req: Request) -> Response {
 async fn handle_config_push(req: Request) -> Response {
     let Ok(Json(body)) = Json::<ConfigPushRequest>::from_request(&req) else {
         return Response::new(
-            biota_http_server::StatusCode::BAD_REQUEST,
+            servelet_core::StatusCode::BAD_REQUEST,
             "invalid config push body",
         );
     };
     let Some(state) = req.extensions().get::<Arc<AppState>>().cloned() else {
         return Response::new(
-            biota_http_server::StatusCode::INTERNAL_SERVER_ERROR,
+            servelet_core::StatusCode::INTERNAL_SERVER_ERROR,
             "state missing",
         );
     };
@@ -198,8 +200,8 @@ async fn handle_config_push(req: Request) -> Response {
 /// `state` is the raw `AppState`, not pre-wrapped — `Router::with_state` does its own
 /// `Arc::new(state)` internally (see its doc: read back via `Arc<S>`); wrapping it again here
 /// would inject `Arc<Arc<AppState>>` and every handler's `.get::<Arc<AppState>>()` would miss.
-pub fn router(state: AppState) -> biota_http_server::Router {
-    biota_http_server::Router::new()
+pub fn router(state: AppState) -> servelet_router::Router {
+    servelet_router::Router::new()
         .post("/register", handle_register)
         .post("/heartbeat", handle_heartbeat)
         .get("/instances", handle_list)

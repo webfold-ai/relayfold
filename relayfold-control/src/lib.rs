@@ -21,6 +21,7 @@
 
 pub mod app;
 pub mod dto;
+pub mod json;
 pub mod model;
 
 pub use app::{router, AppState};
