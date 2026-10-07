@@ -488,6 +488,16 @@ pub fn consistent_ring_index(key_coord: u64, node_coords: &[u64], vnodes: u32) -
         .unwrap_or(0)
 }
 
+/// What [`Backends::reconcile`] changed — the reload diff, counted, so a caller can log
+/// "3 added, 1 removed" instead of just "changed". `retained` is the number of upstream
+/// slots that existed before AND after, i.e. the ones that kept their health state.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct ReconcileOutcome {
+    pub added: usize,
+    pub removed: usize,
+    pub reweighted: usize,
+}
+
 /// One route's backend set: the upstream list plus whatever state its selection algorithm
 /// needs. `rr_counter` is `Arc`-shared (not a plain `AtomicUsize`) so cloning shares the SAME
 /// round-robin rotation across all clones. `health` is parallel to `upstreams` (same index),
@@ -526,6 +536,59 @@ impl Backends {
     #[must_use]
     pub fn upstreams(&self) -> &[Upstream] {
         &self.upstreams
+    }
+
+    /// Reconcile this set against a newly-desired `desired`, in place, preserving per-upstream
+    /// state across the change: an upstream in both (same scheme/host/port) KEEPS ITS SLOT, so
+    /// its `Arc<HealthEstimator>`, its `Arc<AtomicBool>` active-health verdict and its position
+    /// in the round-robin rotation all survive. A desired upstream that is new is appended; a
+    /// present upstream `desired` no longer lists is dropped.
+    ///
+    /// Registration order is therefore stable under a reload, which matters beyond health: a
+    /// [`Registry::set_health`] caller's indices keep meaning the same thing across reloads.
+    ///
+    /// Only a WEIGHT change on a surviving upstream is reported in
+    /// [`ReconcileOutcome::reweighted`] rather than treated as add+remove, because
+    /// [`LoadBalance::Weighted`] is the only algorithm that reads it and swapping the upstream
+    /// would gratuitously reset that slot's measured latency.
+    pub fn reconcile(&mut self, desired: &[Upstream]) -> ReconcileOutcome {
+        let mut out = ReconcileOutcome::default();
+        // Drop, back to front, so `remove`'s shift doesn't move an index we have yet to visit.
+        let mut i = self.upstreams.len();
+        while i > 0 {
+            i -= 1;
+            if !desired
+                .iter()
+                .any(|d| d.identity() == self.upstreams[i].identity())
+            {
+                self.upstreams.remove(i);
+                self.health.remove(i);
+                self.active_health.remove(i);
+                out.removed += 1;
+            }
+        }
+        for d in desired {
+            match self
+                .upstreams
+                .iter()
+                .position(|u| u.identity() == d.identity())
+            {
+                Some(idx) => {
+                    if self.upstreams[idx].weight != d.weight {
+                        self.upstreams[idx].weight = d.weight;
+                        out.reweighted += 1;
+                    }
+                }
+                None => {
+                    self.upstreams.push(d.clone());
+                    self.health.push(Arc::new(HealthEstimator::new()));
+                    self.active_health
+                        .push(Arc::new(std::sync::atomic::AtomicBool::new(true)));
+                    out.added += 1;
+                }
+            }
+        }
+        out
     }
 
     /// Select one upstream by `algo`, returning it along with its health estimator so the
@@ -707,12 +770,72 @@ impl Registry {
             .and_then(|backends| backends.pick(self.lb, hash_key))
     }
 
+    /// `pick` with the algorithm supplied per call rather than taken from the registry-wide
+    /// one. This is what makes a PER-ROUTE algorithm real: a routing table that fronts
+    /// several independent pools cannot set one `lb` on the registry that is right for all of
+    /// them, and rebuilding the registry per algorithm is not an option. The selection
+    /// algorithm itself is `Backends::pick`'s, unchanged — this only chooses which algorithm
+    /// that call is handed.
+    #[must_use]
+    pub fn pick_with(
+        &self,
+        route: &str,
+        algo: LoadBalance,
+        hash_key: &str,
+    ) -> Option<(&Upstream, &Arc<HealthEstimator>)> {
+        self.upstreams
+            .get(&route.coord())
+            .and_then(|backends| backends.pick(algo, hash_key))
+    }
+
     /// Mark an upstream on `route` (by index, same order as registered) up or down — what a real
     /// background active-health-check probe would call.
     pub fn set_health(&self, route: &str, idx: usize, healthy: bool) {
         if let Some(backends) = self.upstreams.get(&route.coord()) {
             backends.set_health(idx, healthy);
         }
+    }
+
+    /// The `Backends` registered for `route`, if any — CLONED, so the clone shares this
+    /// registry's `Arc<HealthEstimator>`s, `Arc<AtomicBool>`s and round-robin cursor rather
+    /// than copying them.
+    ///
+    /// This is the read half of the patch protocol [`Registry::set_backends`] completes: take
+    /// the live backend set, [`Backends::reconcile`] it against a newly-parsed desired set,
+    /// and put it back. An upstream present in both before and after keeps its health state
+    /// and its rotation position across a config reload; only genuinely added/removed
+    /// upstreams are new. That is the whole reason a hot reload is a diff and not a rebuild.
+    #[must_use]
+    pub fn backends_for(&self, route: &str) -> Option<Backends> {
+        self.upstreams.get(&route.coord()).cloned()
+    }
+
+    /// Replace `route`'s backend set wholesale — the write half of the protocol
+    /// [`Registry::backends_for`] starts. Replaces (does not merge with) whatever was there,
+    /// so passing a [`Registry::backends_for`] clone round-trips its shared state exactly.
+    pub fn set_backends(&mut self, route: impl Into<String>, backends: Backends) {
+        let route = route.into();
+        self.upstreams.put(route.coord(), backends);
+    }
+
+    /// Drop `route` entirely. Returns whether it was registered — the reload path's way of
+    /// telling "removed a route that was already gone" (no-op) from "removed one" (log it).
+    pub fn remove_route(&mut self, route: &str) -> bool {
+        self.upstreams.remove(&route.coord()).is_some()
+    }
+
+    /// Change the load-balancing algorithm in place, for a config reload that flips it.
+    /// [`Registry::load_balance`] is the builder form; this is the same setter without
+    /// consuming the registry, because a reload patches a registry it already owns.
+    pub fn set_load_balance(&mut self, algo: LoadBalance) {
+        self.lb = algo;
+    }
+
+    /// Drop every relationship mentioning `entity` on either side — a reload that removes an
+    /// `allow` rule must not leave the old tuple behind to keep granting access. Delegates to
+    /// [`Relationships::forget`]; returns how many were removed.
+    pub fn forget(&mut self, entity: &str) -> usize {
+        self.relationships.forget(entity)
     }
 }
 

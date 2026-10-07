@@ -1,0 +1,52 @@
+# relayfold-proxy — example configuration.
+#
+# Copy this, edit it, and point PROXY_CONFIG at it. The running proxy picks up changes on its
+# own: either `kill -HUP <pid>`, or just save the file and wait 250 ms.
+#
+# The full schema is in README.md next to this file.
+
+version: 1
+listen: "0.0.0.0:8080"
+
+# Total bytes of request headers allowed. Enforced by the edge guards as a 400, never
+# forwarded upstream.
+header_limit: 8192
+
+# The algorithm for every pool that does not name its own.
+load_balance: round_robin
+
+routes:
+  # Prefix matching is on segment boundaries: this covers /api and /api/users/42, and
+  # deliberately NOT /apix.
+  - match: { prefix: "/api" }
+    upstream: backend
+
+  # The same pool, narrowed to one Host — no duplicate backend list needed.
+  - match: { prefix: "/api/v2", host: "api.example.com" }
+    upstream: backend
+
+  # A route closed to everyone except tenants holding the tuple.
+  - match: { prefix: "/admin" }
+    upstream: backend
+    allow:
+      - { subject: tenant-a, relation: may_use, object: /admin }
+
+  # The catch-all. prefix "/" is the same as "*".
+  - match: { prefix: "/" }
+    upstream: fallback
+
+pools:
+  backend:
+    load_balance: weighted
+    backends:
+      - { host: "10.0.60.20", port: 8080, weight: 3 }
+      - { host: "10.0.60.21", port: 8080, weight: 1 }
+
+  fallback:
+    backends:
+      - { host: "10.0.60.21", port: 8080 }
+
+health:
+  path: "/healthz"
+  interval_seconds: 10
+  timeout_seconds: 2

@@ -1,0 +1,45 @@
+{{/*
+The relayfold-proxy runtime's configuration file.
+
+The runtime reads its whole configuration from this file (plus two environment variables:
+PROXY_CONFIG and LISTEN_ADDR). Rendering it as a ConfigMap rather than as env vars is what
+makes hot-reload usable in-cluster: a ConfigMap volume is updated by Kubernetes as a symlink
+swap, which the runtime's 250 ms stat poll detects — so `kubectl edit configmap` moves the
+running fleet's routes with no pod restart and no `kubectl exec kill -HUP`.
+
+Two ways to set the contents, in precedence order:
+  * `.Values.config` — rendered verbatim, for any setup the generated shape below cannot
+    express (several routes, several pools, allow rules, TLS, control plane).
+  * otherwise — the single-pool config generated from `.Values.upstream` / `.Values.loadBalance`,
+    which is what every pre-file values.yaml already describes.
+*/}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "relayfold-proxy.fullname" . }}
+  labels:
+    {{- include "relayfold-proxy.labels" . | nindent 4 }}
+data:
+  proxy-runtime.yaml: |
+    {{- if .Values.config }}
+    {{- .Values.config | nindent 4 }}
+    {{- else }}
+    listen: "0.0.0.0:{{ .Values.service.port }}"
+    header_limit: {{ .Values.headerLimit }}
+    load_balance: {{ .Values.loadBalance | quote }}
+    routes:
+      - match: { prefix: "/" }
+        upstream: upstream
+    pools:
+      upstream:
+        backends:
+          - host: {{ .Values.upstream.host | quote }}
+            port: {{ .Values.upstream.port }}
+            scheme: {{ .Values.upstream.scheme | quote }}
+    {{- if .Values.healthCheck }}
+    health:
+      path: {{ .Values.healthCheck.path | quote }}
+      interval_seconds: {{ .Values.healthCheck.intervalSeconds }}
+      timeout_seconds: {{ .Values.healthCheck.timeoutSeconds }}
+    {{- end }}
+    {{- end }}

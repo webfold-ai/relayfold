@@ -2,7 +2,7 @@
 name = "relayfold-proxy-runtime"
 version = "0.1.0"
 edition = "2021"
-description = "Minimal standalone reverse-proxy binary wiring biota-http-server's real Router/Proxy into a runnable service — biota-http-server ships as a library only, with no binary anywhere in the workspace that actually calls serve(); this is that binary, built so relayfold-helm's chart has something real to deploy."
+description = "Standalone reverse-proxy binary: biota-http-server's Router/serve for the HTTP half, relayfold::Registry for the routes, a YAML/JSON config file, and hot-reload on SIGHUP or a file change so a customer can add/remove routes and upstreams without a restart."
 license = "Apache-2.0"
 
 [[bin]]
@@ -10,7 +10,13 @@ name = "relayfold-proxy"
 path = "src/main.rs"
 
 [dependencies]
+relayfold-agents = { path = "../../relayfold-agents" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+# The config file is YAML (JSON is also accepted — same schema, and YAML is a superset in
+# practice, but the parser order is chosen per file so a `.json` file reports JSON errors).
+serde_yaml = "0.9"
 biota-http-server = { git = "https://github.com/Ptyktos/biota" }
-tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "signal"] }
+# The registry the routes live in — the crate this whole workspace exists to ship.
+relayfold = { path = "../../relayfold" }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "signal", "time"] }

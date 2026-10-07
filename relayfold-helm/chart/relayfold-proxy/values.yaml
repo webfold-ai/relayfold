@@ -1,13 +1,15 @@
-# Every key here is read by relayfold-proxy-runtime as an env var (see templates/deployment.yaml
-# for the exact mapping) or consumed directly by a template. Validate any edited copy of this
-# file with `relayfold-chart-tool validate <file>` before `helm install`/`helm upgrade` — it
-# checks the same shape this chart's templates assume, so a typo'd key fails here instead of as a
-# crash-looping pod.
+# Every key here is consumed directly by a template and lands in the ConfigMap-mounted
+# config file (relayfold-helm/proxy-runtime/README.md documents the schema), except `listen`,
+# which is rendered into the file and can be overridden by the LISTEN_ADDR env var.
+# Validate any edited copy of this file with `relayfold-chart-tool validate <file>` before
+# `helm install`/`helm upgrade` — it checks the same shape this chart's templates assume, so
+# a typo'd key fails here instead of as a crash-looping pod.
 
 replicaCount: 2
 
 # One of: round_robin, random, weighted, consistent, healthiest — see relayfold's own
-# LoadBalance enum. Maps straight to relayfold-proxy-runtime's LOAD_BALANCE env var.
+# LoadBalance enum. Written into the config file's top-level `load_balance`, which is the
+# default for every pool that does not name its own.
 loadBalance: round_robin
 
 image:
@@ -15,13 +17,39 @@ image:
   tag: "0.1.0"
   pullPolicy: IfNotPresent
 
-# The single upstream every request is forwarded to (relayfold-proxy-runtime registers it under
-# the wildcard route "*" — see proxy-runtime/src/main.rs). A real multi-upstream/multi-route setup
-# needs proxy-runtime's own config surface extended past env vars; disclosed as out of scope here.
+# The backend every request is forwarded to, rendered into the config file as the single
+# pool `upstream` behind the catch-all route. For more than one route, one pool, or allow
+# rules, set `config` below and render the whole file yourself — that is the only way to
+# express a real multi-route setup, and it is a config change, not a code change.
 upstream:
   host: "upstream.internal"
   port: 8081
   scheme: http
+
+# Total bytes of request headers allowed, enforced by the runtime's edge guards.
+headerLimit: 8192
+
+# Optional. Omitted entirely = no active health probing.
+healthCheck:
+  path: "/healthz"
+  intervalSeconds: 10
+  timeoutSeconds: 2
+
+# Optional. Set this to render the config file verbatim instead of the generated single-pool
+# shape above — the escape hatch for several routes/pools, allow rules, TLS and a control
+# plane. A multi-line YAML string.
+config: ""
+# config: |
+#   listen: "0.0.0.0:8080"
+#   header_limit: 8192
+#   routes:
+#     - match: { prefix: "/api" }
+#       upstream: backend
+#   pools:
+#     backend:
+#       backends:
+#         - { host: "10.0.60.20", port: 8080 }
+#         - { host: "10.0.60.21", port: 8080 }
 
 service:
   type: ClusterIP

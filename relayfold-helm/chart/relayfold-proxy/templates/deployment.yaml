@@ -24,19 +24,19 @@ spec:
         - name: relayfold-proxy
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
-          # Every one of these maps 1:1 to a real env var relayfold-proxy-runtime's main.rs reads
-          # (env_or calls) — not invented config, the actual runtime surface.
+          # The runtime's WHOLE environment surface is two variables: where its config file
+          # is, and an override for the listen address. Everything else is in the file —
+          # a knob that exists in two places is a knob that will be set in one of them and
+          # then be the wrong one. See relayfold-helm/proxy-runtime/README.md for the schema.
           env:
+            - name: PROXY_CONFIG
+              value: "/etc/relayfold/proxy-runtime.yaml"
             - name: LISTEN_ADDR
               value: "0.0.0.0:{{ .Values.service.port }}"
-            - name: UPSTREAM_HOST
-              value: {{ .Values.upstream.host | quote }}
-            - name: UPSTREAM_PORT
-              value: {{ .Values.upstream.port | quote }}
-            - name: UPSTREAM_SCHEME
-              value: {{ .Values.upstream.scheme | quote }}
-            - name: LOAD_BALANCE
-              value: {{ .Values.loadBalance | quote }}
+          volumeMounts:
+            - name: config
+              mountPath: /etc/relayfold
+              readOnly: true
           ports:
             - name: http
               containerPort: {{ .Values.service.port }}
@@ -55,6 +55,13 @@ spec:
             periodSeconds: 5
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
+      volumes:
+        - name: config
+          configMap:
+            name: {{ include "relayfold-proxy.fullname" . }}
+            items:
+              - key: proxy-runtime.yaml
+                path: proxy-runtime.yaml
       {{- with .Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
