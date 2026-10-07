@@ -1,6 +1,6 @@
 {
-  "task": "implement a real agent SDK protocol for kernel::Proxy modeled on Zentinel's agent architecture",
-  "repo_root": "/home/ctown/projects/relayfold",
+  "task": "write Ptyktos/relayfold README following Ptyktos voice, 400-500 words",
+  "repo_root": "/home/ctown/orca/workspaces/ptyktos/relayfold-readme",
   "created_by": "syndesi harness",
   "phase": "Planning",
   "constraints": [
@@ -186,8 +186,8 @@
       "blocking": true
     }
   ],
-  "created_unix": 1790172953,
-  "task_hash": "08bf05d6f42e2bc2",
+  "created_unix": 1790398687,
+  "task_hash": "7aaba389718914ef",
   "sources": [
     {
       "path": "/home/ctown/.config/opencode/AGENTS.md",

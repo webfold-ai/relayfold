@@ -1,6 +1,6 @@
-# Harness — implement a real agent SDK protocol for kernel::Proxy modeled on Zentinel's agent architecture
+# Harness — write Ptyktos/relayfold README following Ptyktos voice, 400-500 words
 
-repo: /home/ctown/projects/relayfold · phase: Planning
+repo: /home/ctown/orca/workspaces/ptyktos/relayfold-readme · phase: Planning
 
 status: **FRESH**
 
