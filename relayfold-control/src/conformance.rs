@@ -933,7 +933,7 @@ pub struct Identity {
 
 impl Identity {
     pub const REAL: Identity = Identity {
-        public_key_of: public_key_of,
+        public_key_of,
         peer_id: transport::dialkey::peer_id,
     };
 }
