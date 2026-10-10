@@ -26,6 +26,7 @@ use crate::stages::Stages;
 use crate::store::{self, RecordSink};
 use std::path::Path;
 use std::sync::Arc;
+use transport::signed_dns::Keypair;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Property {
@@ -58,6 +59,11 @@ pub enum Property {
     IdentitySurvivesRestart,
     ConfigVersionSurvivesRestart,
     StorageErrorNotApplied,
+    PeerIdIsPublicKey,
+    IdentityIsNotTheSecretSeed,
+    PublicKeyFollowsDerivation,
+    IdentityDistinctPerDialkey,
+    IdentityMatchesGolden,
 }
 
 #[derive(Clone, Debug)]
@@ -905,6 +911,99 @@ pub fn check_all(stages: Stages, dir: &Path) -> Vec<Violation> {
 /// [`check_all`], as a pass/fail: `Err` carries the first violation.
 pub fn check(stages: Stages, dir: &Path) -> Result<(), Violation> {
     match check_all(stages, dir).into_iter().next() {
+        None => Ok(()),
+        Some(first) => Err(first),
+    }
+}
+
+// ---------------------------------------------------------------------------------------------
+// Identity derivation: `public_key_of` and `transport::dialkey::peer_id`
+// ---------------------------------------------------------------------------------------------
+
+/// The pair of functions that define "the identity of a dialkey". `Identity::REAL` is what ships;
+/// the mutants in `tests/identity_controls.rs` wrap or alter the real functions.
+#[derive(Clone, Copy)]
+pub struct Identity {
+    /// What this crate puts on the wire as the signer (`auth::public_key_of`).
+    pub public_key_of: fn(&str) -> Key,
+    /// What `transport` calls the dialkey's `PeerId`. Public key since transport 0.2.0; before
+    /// that it was the secret seed.
+    pub peer_id: fn(&str) -> Key,
+}
+
+impl Identity {
+    pub const REAL: Identity = Identity {
+        public_key_of,
+        peer_id: transport::dialkey::peer_id,
+    };
+}
+
+/// Literal test dialkey (not a credential) whose public key is pinned below. The same vector is
+/// pinned in transport's own tests at d4745b9.
+pub const GOLDEN_DIALKEY: &str = "g17-test-dialkey";
+pub const GOLDEN_PUBLIC_HEX: &str =
+    "30966ac5fa1bdd49aec9b9101bf63359704d01dc00597f934f7d7bca9bc5c47b";
+
+/// The documented secret seed, `SHA-256(dialkey ++ ":pkarr")`. transport keeps its own accessor
+/// crate-private, so the seed is recomputed here; [`check_identity`] ties it to the real keypair
+/// (`Keypair::from_secret_key(seed).public_key() == public_key_of`), so a wrong recomputation
+/// fails the checker instead of making the "not the seed" probe vacuous.
+pub fn documented_seed(dialkey: &str) -> Key {
+    crate::auth::sha256(format!("{dialkey}:pkarr").as_bytes())
+}
+
+/// Judge an [`Identity`]: every violated property, empty = conforms.
+pub fn check_identity(id: Identity) -> Vec<Violation> {
+    use crate::auth::hex_encode;
+    let mut out = Vec::new();
+    let dialkeys = [GOLDEN_DIALKEY, DK_A, DK_B];
+    for dk in dialkeys {
+        let public = (id.public_key_of)(dk);
+        let peer = (id.peer_id)(dk);
+        let seed = documented_seed(dk);
+        if peer != public {
+            out.push(v(
+                Property::PeerIdIsPublicKey,
+                format!("peer_id({dk}) != public_key_of({dk})"),
+            ));
+        }
+        if peer == seed || public == seed {
+            out.push(v(
+                Property::IdentityIsNotTheSecretSeed,
+                format!(
+                    "the identity of {dk} equals SHA-256(dialkey ++ \":pkarr\"), the secret seed"
+                ),
+            ));
+        }
+        let derived = *Keypair::from_secret_key(&seed).public_key().as_bytes();
+        if public != derived {
+            out.push(v(
+                Property::PublicKeyFollowsDerivation,
+                format!("public_key_of({dk}) is not the public half of the documented seed"),
+            ));
+        }
+    }
+    if (id.public_key_of)(DK_A) == (id.public_key_of)(DK_B) {
+        out.push(v(
+            Property::IdentityDistinctPerDialkey,
+            "two different dialkeys share one identity",
+        ));
+    }
+    for (name, f) in [("public_key_of", id.public_key_of), ("peer_id", id.peer_id)] {
+        let got = hex_encode(&f(GOLDEN_DIALKEY));
+        if got != GOLDEN_PUBLIC_HEX {
+            out.push(v(
+                Property::IdentityMatchesGolden,
+                format!("{name}({GOLDEN_DIALKEY}) = {got}, expected {GOLDEN_PUBLIC_HEX}"),
+            ));
+        }
+    }
+    out
+}
+
+/// [`check_identity`], as a pass/fail: `Err` carries the first violation.
+pub fn check_identity_ok(id: Identity) -> Result<(), Violation> {
+    match check_identity(id).into_iter().next() {
         None => Ok(()),
         Some(first) => Err(first),
     }

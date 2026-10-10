@@ -11,7 +11,8 @@ Every **mutating** call carries four headers: `x-relayfold-key` (the signer's pu
 z-base32), `x-relayfold-timestamp`, `x-relayfold-nonce`, `x-relayfold-signature` (hex Ed25519 over
 a length-prefixed `(method, path, sha256(body), timestamp, nonce)`). The key is
 `transport::dialkey::native_keypair(dialkey).public_key()` — see `auth::Signer` for the client
-side. (Do not use `transport::dialkey::peer_id`: at the pinned rev it returns the secret seed.)
+side. (`transport::dialkey::peer_id` returns the same public key since transport 0.2.0, the
+pinned rev; up to 30fdaf7 it returned the secret seed.)
 
 | Call | What it does | Rejections |
 |---|---|---|

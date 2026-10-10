@@ -1,8 +1,9 @@
 //! Request authentication: every mutating call is signed by the caller's dialkey-derived Ed25519
-//! key. The identity is `transport::dialkey::native_keypair(dialkey).public_key()` — NOT
-//! `transport::dialkey::peer_id(dialkey)`, which at the pinned rev returns the 32-byte secret
-//! *seed* (the keypair is `Keypair::from_secret_key(&peer_id(dialkey))`), so it must never be
-//! sent, logged or stored.
+//! key. The identity is `transport::dialkey::native_keypair(dialkey).public_key()`, which is also
+//! what `transport::dialkey::peer_id(dialkey)` returns since transport 0.2.0 (d4745b9). Up to
+//! 30fdaf7 `peer_id` returned the 32-byte secret *seed* instead, so this crate never used it;
+//! it is kept off the wire path (`public_key_of` calls `native_keypair`) and tests pin both to the
+//! same golden vector. The seed itself must never be sent, logged or stored.
 //!
 //! # Wire format
 //!
@@ -453,9 +454,36 @@ mod tests {
 
     #[test]
     fn the_public_identity_is_not_the_secret_seed() {
-        // `peer_id(dialkey)` is the secret seed at the pinned transport rev.
-        let seed = transport::dialkey::peer_id("auth-test-dialkey");
-        assert_ne!(public_key_of("auth-test-dialkey"), seed);
+        // `peer_id(dialkey)` is the PUBLIC key since transport 0.2.0. `Keypair` has no seed
+        // accessor, so recompute the documented seed, SHA-256(dialkey ++ ":pkarr"), and prove it
+        // IS the seed of `native_keypair`: otherwise the `assert_ne!` below would be vacuous.
+        let dk = "auth-test-dialkey";
+        let seed = sha256(format!("{dk}:pkarr").as_bytes());
+        let public = public_key_of(dk);
+        assert_eq!(
+            *Keypair::from_secret_key(&seed).public_key().as_bytes(),
+            public,
+            "the recomputed seed is the seed of native_keypair"
+        );
+        let peer = transport::dialkey::peer_id(dk);
+        assert_eq!(peer, public, "peer_id is the public key");
+        assert_ne!(peer, seed, "peer_id is not the secret seed");
+        assert_ne!(public, seed);
+    }
+
+    #[test]
+    fn a_literal_test_dialkey_has_a_pinned_public_key() {
+        // Golden vector (literal test dialkey, not a credential); the same one transport pins.
+        const GOLDEN: &str = "30966ac5fa1bdd49aec9b9101bf63359704d01dc00597f934f7d7bca9bc5c47b";
+        assert_eq!(hex_encode(&public_key_of("g17-test-dialkey")), GOLDEN);
+        assert_eq!(
+            hex_encode(&transport::dialkey::peer_id("g17-test-dialkey")),
+            GOLDEN
+        );
+        assert_eq!(
+            hex_encode(&Signer::from_dialkey("g17-test-dialkey").public_key()),
+            GOLDEN
+        );
     }
 
     #[test]
