@@ -10,7 +10,7 @@ members = [
 ]
 
 [patch."https://github.com/Ptyktos/relayfold"]
-# `transport` (pulled in transitively via biota-http-server, a dep of relayfold-control and
+# `transport` (a direct dep of relayfold-control, and reached via biota-http-server from
 # relayfold-proxy-runtime) still declares `relayfold = { git = "https://github.com/Ptyktos/relayfold" }`. Now
 # that relayfold lives locally as a workspace member, that git reference and this path member
 # resolve to the same package name and cargo reports "specification `relayfold` is ambiguous"
