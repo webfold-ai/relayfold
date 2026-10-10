@@ -9,9 +9,10 @@ license = "Apache-2.0"
 hashtrinity = { git = "https://github.com/Ptyktos/hashtrinity", rev = "2c36b995c82c073c71df7c28b14c62665d62cbf0", default-features = false, features = ["codec", "derive", "hex", "base64"] }
 # Identity: `transport::dialkey::native_keypair` derives the Ed25519 keypair from a dialkey,
 # `transport::signed_dns::{Keypair, PublicKey}` sign/verify. Pinned by rev like the servelet deps.
-# Default features are required: at this rev `--no-default-features` does not compile
-# (`http_client` is not feature-gated but uses tokio/rustls/tracing).
-transport = { git = "https://github.com/Ptyktos/transport", rev = "30fdaf7f083b957b4d81224aa15150f746c843bb" }
+# d4745b9 is transport 0.2.0: `dialkey::peer_id` returns the PUBLIC key (it returned the secret seed
+# up to 30fdaf7). Default features stay on; this crate has not been built with
+# `--no-default-features` (transport 0.2.0 gates `http_client`, but that is not exercised here).
+transport = { git = "https://github.com/Ptyktos/transport", rev = "d4745b979cfa0b61d30e310607316309c71f6839" }
 # The durable append log (CRC32-framed, fsync policy, torn-tail truncation on open). It is a
 # sibling crate inside the sangdb repo; the `sangdb` crate itself is no longer used here.
 sangdb-log = { git = "https://github.com/Ptyktos/sangdb", rev = "bb76e6c487e4d33c6d41c57fdc11be36c627bc5e" }
