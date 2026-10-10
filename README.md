@@ -26,15 +26,14 @@ Each member keeps its own README with crate-specific detail.
 cargo build --workspace
 ```
 
-`relayfold-control` and `relayfold-proxy-runtime` depend on `biota-http-server`,
-whose manifest pulls in `modelfold` via git. The currently pinned `modelfold`
-commit is missing `src/sparse_fft.rs` (`E0583`) — a pre-existing breakage in
-that upstream dependency, unrelated to this workspace. The other four members
-have no such dependency and build/test cleanly:
-
-```sh
-cargo test --workspace --exclude relayfold-control --exclude relayfold-proxy-runtime
-```
+`relayfold-control` pulls `servelet`, whose manifest takes `hashtrinity` from the private GitLab
+mirror (`gitlab.tas.twn.network`), so the machine running cargo needs git access to it — see
+[`relayfold-control/README.md`](relayfold-control/README.md#build-and-test). Without it `cargo` fails
+at dependency resolution, before compiling anything, and because cargo resolves the whole workspace
+graph that applies to every `cargo` command in the workspace, not only to that member. With it, on 2026-10-11 the build box ran
+`cargo test --workspace` green; the `modelfold` `src/sparse_fft.rs` (`E0583`) breakage this file
+used to describe did not reproduce (`relayfold-proxy-runtime` compiled, with two unused-variable
+warnings).
 
 ## Integration
 

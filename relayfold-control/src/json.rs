@@ -56,22 +56,31 @@ impl JsonError {
 impl<T: AsTerm> Json<T> {
     /// Decode a request body as JSON into `T`.
     pub fn from_request(req: &Request) -> Result<Json<T>, JsonError> {
-        let body =
-            std::str::from_utf8(req.body()).map_err(|e| JsonError::new(e.to_string()))?;
+        Self::from_bytes(req.body())
+    }
+
+    /// Decode raw JSON bytes into `T` (the body-level half of [`Json::from_request`]).
+    pub fn from_bytes(bytes: &[u8]) -> Result<Json<T>, JsonError> {
+        let body = std::str::from_utf8(bytes).map_err(|e| JsonError::new(e.to_string()))?;
         let term = hashtrinity::codec::syntax::parse_surface(Surface::Json, body)
             // `SyntaxError` has no Display, so name its Debug form rather than losing the
             // parse position — a 400 that cannot say what was wrong is not debuggable.
             .map_err(|e| JsonError::new(format!("{e:?}")))?;
         // `SyntaxError` has no Display; use Debug so the field/position survives.
-        T::from_term(&term).map(Json).map_err(|e| JsonError::new(format!("{e:?}")))
+        T::from_term(&term)
+            .map(Json)
+            .map_err(|e| JsonError::new(format!("{e:?}")))
+    }
+
+    /// Serialize to JSON bytes.
+    pub fn encode(&self) -> Vec<u8> {
+        let term: Term = self.0.to_term();
+        hashtrinity::codec::syntax::render_surface(&term, Surface::Json).into_bytes()
     }
 
     /// Serialize as a JSON response with the right Content-Type.
     pub fn into_response(self) -> Response {
-        let term: Term = self.0.to_term();
-        let body = hashtrinity::codec::syntax::render_surface(&term, Surface::Json);
-        Response::new(StatusCode::OK, body.into_bytes())
-            .with_header("content-type", "application/json")
+        Response::new(StatusCode::OK, self.encode()).with_header("content-type", "application/json")
     }
 
     /// Unwrap to the inner `T`, matching `web::Json<T>::into_inner()`.
