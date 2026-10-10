@@ -41,6 +41,10 @@ async fn main() -> std::io::Result<()> {
     let state = AppState::open(&data_dir, cfg, Arc::new(SystemClock))?;
     let router = relayfold_control::router(state);
     let listener = tokio::net::TcpListener::bind(&addr).await?;
-    println!("relayfold-control listening on {addr}, data dir {data_dir}");
+    // The bound address, not the requested one: with `127.0.0.1:0` this is how a caller learns the port.
+    println!(
+        "relayfold-control listening on {}, data dir {data_dir}",
+        listener.local_addr()?
+    );
     relayfold_control::serve_on(listener, router).await
 }
