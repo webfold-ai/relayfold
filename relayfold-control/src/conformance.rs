@@ -15,9 +15,17 @@
 //! Scope: the checker drives [`ControlPlane`], the layer that owns every decision. The HTTP layer
 //! (header extraction, status mapping) is exercised separately over real sockets in
 //! `tests/http.rs`.
+//!
+//! Enrollment, the signed read path and compaction are probed the same way. The compaction
+//! scenarios run two planes through one history (one compacts mid-way) and compare them after a
+//! restart, replay a pre-compaction request, and — the crash scenario — stop the compaction after
+//! every prefix of its step plan, once as a process kill and once as the worst-case power loss
+//! (`compaction::LossyFs`), then require the directory to open to exactly the pre-compaction
+//! state and to keep accepting durable writes.
 
 use crate::auth::{key_to_z32, public_key_of, AuthHeaders, Key, RawAuth, SignedCall, Signer};
 use crate::clock::{Clock, ManualClock};
+use crate::compaction::LossyFs;
 use crate::config::{sign_config, verify_config_with, SignedConfig};
 use crate::dto::{ConfigPushRequest, HeartbeatRequest, InstanceView, RegisterRequest};
 use crate::json::Json;
@@ -64,6 +72,23 @@ pub enum Property {
     PublicKeyFollowsDerivation,
     IdentityDistinctPerDialkey,
     IdentityMatchesGolden,
+    // Enrollment (gap 1) and the signed read path (gap 2).
+    UnenrolledRegisterRejected,
+    EmptyAllowlistIsClosed,
+    RejectionIsLogged,
+    ListUnsignedRejected,
+    ListForgedRejected,
+    ListUnenrolledRejected,
+    ListEnrolledAccepted,
+    ListReplayRejected,
+    // Compaction (gap 3).
+    CompactionPreservesState,
+    CompactionShrinksLog,
+    CompactionKeepsIdentity,
+    CompactionKeepsConfigVersion,
+    CompactionKeepsAudit,
+    CompactionKeepsReplayProtection,
+    CompactionCrashSafe,
 }
 
 #[derive(Clone, Debug)]
@@ -92,6 +117,8 @@ const DK_A: &str = "conformance-instance-a";
 const DK_B: &str = "conformance-instance-b";
 const DK_ADMIN: &str = "conformance-admin";
 const DK_CONTROL: &str = "conformance-control";
+/// Validly signs everything it sends, but is on no allowlist.
+const DK_OUTSIDER: &str = "conformance-outsider";
 
 const START: i64 = 1_000_000;
 const TTL: i64 = 30;
@@ -106,9 +133,12 @@ struct Rig {
 }
 
 fn base_cfg() -> ControlConfig {
-    let mut cfg = ControlConfig::new(DK_CONTROL, vec![public_key_of(DK_ADMIN)]);
+    let mut cfg = ControlConfig::new(DK_CONTROL, vec![public_key_of(DK_ADMIN)])
+        .with_enrolled(vec![public_key_of(DK_A), public_key_of(DK_B)]);
     cfg.ttl_secs = TTL;
     cfg.skew_secs = SKEW;
+    // Compaction is driven explicitly by the scenarios that probe it.
+    cfg.compact_after = None;
     cfg
 }
 
@@ -169,6 +199,51 @@ impl Rig {
         let body = Json(register_req(id)).encode();
         let auth = self.sign(s, "/register", &body, self.now()).to_raw();
         self.register_with(&auth, &body, id)
+    }
+
+    /// Register `id` at `addr` (a re-register by the bound key changes what the log holds).
+    fn register_at(
+        &mut self,
+        s: &Signer,
+        id: &str,
+        addr: &str,
+    ) -> Result<InstanceView, ControlError> {
+        let req = RegisterRequest {
+            addr: addr.to_string(),
+            ..register_req(id)
+        };
+        let body = Json(req.clone()).encode();
+        let auth = self.sign(s, "/register", &body, self.now()).to_raw();
+        let call = SignedCall {
+            method: "POST",
+            path: "/register",
+            body: &body,
+            auth: &auth,
+        };
+        self.plane.register(&call, req)
+    }
+
+    /// `GET /instances` as `s` would send it.
+    fn list_signed_as(&mut self, s: &Signer) -> (RawAuth, Result<Vec<InstanceView>, ControlError>) {
+        let auth = s.sign_now("GET", "/instances", b"", self.now()).to_raw();
+        let res = self.list_with(&auth);
+        (auth, res)
+    }
+
+    fn list_with(&mut self, auth: &RawAuth) -> Result<Vec<InstanceView>, ControlError> {
+        let call = SignedCall {
+            method: "GET",
+            path: "/instances",
+            body: b"",
+            auth,
+        };
+        self.plane.list_signed(&call)
+    }
+
+    fn log_len(&self) -> u64 {
+        std::fs::metadata(self.dir.join(store::LOG_FILE))
+            .map(|m| m.len())
+            .unwrap_or(0)
     }
 
     fn heartbeat(
@@ -883,6 +958,580 @@ fn storage_failure(stages: Stages, _dir: &Path, rep: &mut Report) {
     );
 }
 
+// ── enrollment, the signed read path, compaction ───────────────────────────────────────────
+
+/// A refusal must be exactly [`ControlError::NotEnrolled`] (the 403 class), not merely "an error".
+fn not_enrolled<T>(rep: &mut Report, property: Property, what: &str, r: Result<T, ControlError>) {
+    match r {
+        Err(ControlError::NotEnrolled) => {}
+        Err(other) => rep.fail(
+            property,
+            format!("{what} was refused, but not as NotEnrolled: {other}"),
+        ),
+        Ok(_) => rep.fail(property, format!("{what} was accepted")),
+    }
+}
+
+fn enrollment(stages: Stages, dir: &Path, rep: &mut Report) {
+    let Some(mut r) = rig(rep, stages, dir, "enrollment", base_cfg()) else {
+        return;
+    };
+    let (a, outsider) = (
+        Signer::from_dialkey(DK_A),
+        Signer::from_dialkey(DK_OUTSIDER),
+    );
+    let reg = r.register(&a, "i1");
+    if rep
+        .setup(
+            Property::ValidRequestAccepted,
+            "register by an enrolled key",
+            reg,
+        )
+        .is_none()
+    {
+        return;
+    }
+
+    // The refusal is exactly `NotEnrolled` (the 403 class). Its wire text, NOT_ENROLLED, is a
+    // constant of the error type, not a decision point, so it is asserted over real sockets in
+    // `tests/http.rs`, not here.
+    let res = r.register(&outsider, "intruder-1");
+    not_enrolled(
+        rep,
+        Property::UnenrolledRegisterRejected,
+        "register by a validly signing key on no allowlist",
+        res,
+    );
+    rep.ensure(
+        r.plane.bound_key("intruder-1").is_none(),
+        Property::UnenrolledRegisterRejected,
+        "an unenrolled register bound an id",
+    );
+    let outsider_key = outsider.public_key();
+    let logged = move |p: &ControlPlane| {
+        p.rejections()
+            .iter()
+            .any(|x| x.key == outsider_key && x.id == "intruder-1")
+    };
+    rep.ensure(
+        logged(&r.plane),
+        Property::RejectionIsLogged,
+        "the refused register was not recorded",
+    );
+    if let Err(e) = r.restart() {
+        rep.0.push(e);
+        return;
+    }
+    rep.ensure(
+        logged(&r.plane),
+        Property::RejectionIsLogged,
+        "the refused register did not survive a restart",
+    );
+
+    // Removing a key from the allowlist closes the door on it at the next start.
+    r.cfg.enrolled_keys.retain(|k| *k != a.public_key());
+    if let Err(e) = r.restart() {
+        rep.0.push(e);
+        return;
+    }
+    let res = r.register(&a, "i1");
+    not_enrolled(
+        rep,
+        Property::UnenrolledRegisterRejected,
+        "register by a key removed from the allowlist",
+        res,
+    );
+}
+
+fn empty_allowlist(stages: Stages, dir: &Path, rep: &mut Report) {
+    let mut cfg = base_cfg();
+    cfg.enrolled_keys.clear();
+    let Some(mut r) = rig(rep, stages, dir, "closed", cfg) else {
+        return;
+    };
+    let a = Signer::from_dialkey(DK_A);
+    let res = r.register(&a, "i1");
+    rep.rejected(
+        Property::EmptyAllowlistIsClosed,
+        "register with an empty allowlist",
+        res,
+    );
+    let (_, res) = r.list_signed_as(&a);
+    rep.rejected(
+        Property::EmptyAllowlistIsClosed,
+        "list with an empty allowlist",
+        res,
+    );
+}
+
+fn signed_list(stages: Stages, dir: &Path, rep: &mut Report) {
+    let Some(mut r) = rig(rep, stages, dir, "list", base_cfg()) else {
+        return;
+    };
+    let (a, b) = (Signer::from_dialkey(DK_A), Signer::from_dialkey(DK_B));
+    let (outsider, admin) = (
+        Signer::from_dialkey(DK_OUTSIDER),
+        Signer::from_dialkey(DK_ADMIN),
+    );
+    let reg = r.register(&a, "i1");
+    if rep
+        .setup(Property::ValidRequestAccepted, "register i1", reg)
+        .is_none()
+    {
+        return;
+    }
+
+    let res = r.list_with(&RawAuth::default());
+    rep.unauthenticated(
+        Property::ListUnsignedRejected,
+        "list with no credentials",
+        res,
+    );
+    // Claims to be A, signed by B.
+    let now = r.now();
+    let mut forged = a.sign_now("GET", "/instances", b"", now);
+    forged.signature = b
+        .sign("GET", "/instances", b"", now, &forged.nonce)
+        .signature;
+    let res = r.list_with(&forged.to_raw());
+    rep.unauthenticated(
+        Property::ListForgedRejected,
+        "list signed by a different key than it claims",
+        res,
+    );
+    // A genuine signature of A's, made for a different call.
+    let other = a.sign_now("POST", "/heartbeat", b"{}", now).to_raw();
+    let res = r.list_with(&other);
+    rep.unauthenticated(
+        Property::ListForgedRejected,
+        "list carrying a signature made for another call",
+        res,
+    );
+    for (who, s) in [("an outsider", &outsider), ("the admin key", &admin)] {
+        let (_, res) = r.list_signed_as(s);
+        not_enrolled(
+            rep,
+            Property::ListUnenrolledRejected,
+            &format!("a validly signed list by {who} (enrolled nowhere)"),
+            res,
+        );
+    }
+
+    let (auth, res) = r.list_signed_as(&a);
+    if let Some(views) = rep.setup(
+        Property::ListEnrolledAccepted,
+        "a signed list by an enrolled key",
+        res,
+    ) {
+        rep.ensure(
+            views.len() == 1 && views[0].id == "i1",
+            Property::ListEnrolledAccepted,
+            format!("the list is {views:?}"),
+        );
+    }
+    let again = r.list_with(&auth);
+    rep.unauthenticated(
+        Property::ListReplayRejected,
+        "byte-identical replay of an accepted list",
+        again,
+    );
+}
+
+struct Cast {
+    a: Signer,
+    b: Signer,
+    admin: Signer,
+    outsider: Signer,
+}
+
+fn cast() -> Cast {
+    Cast {
+        a: Signer::from_dialkey(DK_A),
+        b: Signer::from_dialkey(DK_B),
+        admin: Signer::from_dialkey(DK_ADMIN),
+        outsider: Signer::from_dialkey(DK_OUTSIDER),
+    }
+}
+
+/// The history compaction is judged on, part 1: churn on one id, three instances, pushes and
+/// refusals. `false` = a step that must succeed was refused (already recorded).
+fn script_head(r: &mut Rig, rep: &mut Report, c: &Cast) -> bool {
+    for (s, id, addr) in [
+        (&c.a, "i1", "http://10.0.0.1:1"),
+        (&c.b, "i2", "http://10.0.0.2:1"),
+        (&c.a, "i3", "http://10.0.0.3:1"),
+        (&c.a, "i1", "http://10.0.0.1:2"),
+        (&c.a, "i1", "http://10.0.0.1:3"),
+    ] {
+        let res = r.register_at(s, id, addr);
+        if rep
+            .setup(
+                Property::ValidRequestAccepted,
+                &format!("register {id}"),
+                res,
+            )
+            .is_none()
+        {
+            return false;
+        }
+    }
+    for config in ["one", "two"] {
+        let res = r.push(&c.admin, "*", config);
+        if rep
+            .setup(Property::ValidRequestAccepted, "an admin push", res)
+            .is_none()
+        {
+            return false;
+        }
+    }
+    for id in ["evil-1", "evil-2"] {
+        let _ = r.register(&c.outsider, id);
+    }
+    true
+}
+
+/// Part 2: what lands in the log *after* a compaction (the tail). It has no config push on
+/// purpose: a later `ConfigPushed` would re-establish `config_version` by itself and hide a
+/// snapshot that forgot it. (The randomized history in `tests/compaction.rs` mixes pushes into
+/// the tail.)
+fn script_tail(r: &mut Rig, rep: &mut Report, c: &Cast) -> bool {
+    for (s, id, addr) in [
+        (&c.b, "i4", "http://10.0.0.4:1"),
+        (&c.b, "i2", "http://10.0.0.2:9"),
+    ] {
+        let res = r.register_at(s, id, addr);
+        if rep
+            .setup(
+                Property::ValidRequestAccepted,
+                &format!("register {id}"),
+                res,
+            )
+            .is_none()
+        {
+            return false;
+        }
+    }
+    let _ = r.register(&c.outsider, "evil-3");
+    true
+}
+
+/// A restart that must open; a failure to open is the property's violation.
+fn reopen(r: &mut Rig, rep: &mut Report, property: Property) -> bool {
+    match r.restart() {
+        Ok(()) => true,
+        Err(mut e) => {
+            e.property = property;
+            rep.0.push(e);
+            false
+        }
+    }
+}
+
+/// `replay(snapshot + tail) == replay(full log)`: two rigs run the same history, one is
+/// compacted in the middle; after a restart they must agree on everything the log holds, and the
+/// compacted one must keep refusing a request accepted before the compaction.
+fn compaction_equivalence(stages: Stages, dir: &Path, rep: &mut Report) {
+    let Some(mut a) = rig(rep, stages, dir, "cmp-compacted", base_cfg()) else {
+        return;
+    };
+    let Some(mut b) = rig(rep, stages, dir, "cmp-plain", base_cfg()) else {
+        return;
+    };
+    let c = cast();
+    if !script_head(&mut a, rep, &c) || !script_head(&mut b, rep, &c) {
+        return;
+    }
+
+    // A request accepted before the compaction, to be replayed after it.
+    let req = RegisterRequest {
+        addr: "http://10.0.0.1:3".into(),
+        ..register_req("i1")
+    };
+    let body = Json(req.clone()).encode();
+    let captured = a.sign(&c.a, "/register", &body, a.now()).to_raw();
+    let first = a.plane.register(
+        &SignedCall {
+            method: "POST",
+            path: "/register",
+            body: &body,
+            auth: &captured,
+        },
+        req.clone(),
+    );
+    if rep
+        .setup(
+            Property::ValidRequestAccepted,
+            "the request that will be replayed",
+            first,
+        )
+        .is_none()
+    {
+        return;
+    }
+
+    let before_state = a.plane.state();
+    let before_len = a.log_len();
+    let compacted = a.plane.compact();
+    if rep
+        .setup(Property::CompactionPreservesState, "compaction", compacted)
+        .is_none()
+    {
+        return;
+    }
+    rep.ensure(
+        a.log_len() < before_len,
+        Property::CompactionShrinksLog,
+        format!(
+            "the log is {} bytes after compaction, it was {before_len}",
+            a.log_len()
+        ),
+    );
+    rep.ensure(
+        a.plane.state() == before_state,
+        Property::CompactionPreservesState,
+        "compaction changed the in-memory state",
+    );
+    let again = a.plane.register(
+        &SignedCall {
+            method: "POST",
+            path: "/register",
+            body: &body,
+            auth: &captured,
+        },
+        req.clone(),
+    );
+    rep.unauthenticated(
+        Property::CompactionKeepsReplayProtection,
+        "replay of a pre-compaction request, same process",
+        again,
+    );
+
+    if !script_tail(&mut a, rep, &c) || !script_tail(&mut b, rep, &c) {
+        return;
+    }
+    if !reopen(&mut a, rep, Property::CompactionPreservesState)
+        || !reopen(&mut b, rep, Property::CompactionPreservesState)
+    {
+        return;
+    }
+
+    let (sa, sb) = (a.plane.state(), b.plane.state());
+    rep.ensure(
+        sa.0 == sb.0,
+        Property::CompactionKeepsIdentity,
+        "the instance table (ids, addresses, bound keys) differs from the full-log replay",
+    );
+    rep.ensure(
+        sa.1 == sb.1,
+        Property::CompactionKeepsConfigVersion,
+        format!(
+            "config_version is {} after snapshot + tail, {} after the full log",
+            sa.1, sb.1
+        ),
+    );
+    rep.ensure(
+        sa.2 == sb.2,
+        Property::CompactionKeepsAudit,
+        "the enrollment audit trail differs from the full-log replay",
+    );
+    rep.ensure(
+        sa == sb,
+        Property::CompactionPreservesState,
+        "replay(snapshot + tail) != replay(full log)",
+    );
+
+    // Identity is still enforced on the compacted store.
+    let res = a.heartbeat(&c.b, "i1", true);
+    rep.rejected(
+        Property::CompactionKeepsIdentity,
+        "a heartbeat for i1 by a key it is not bound to, after compaction and restart",
+        res,
+    );
+    let res = a.register(&c.b, "i1");
+    rep.rejected(
+        Property::CompactionKeepsIdentity,
+        "a re-register of i1 by a second key, after compaction and restart",
+        res,
+    );
+    // The config_version counter continues, it does not restart.
+    if let (Ok(pa), Ok(pb)) = (a.push(&c.admin, "*", "four"), b.push(&c.admin, "*", "four")) {
+        rep.ensure(
+            pa.config_version == pb.config_version && pa.config_version == 3,
+            Property::CompactionKeepsConfigVersion,
+            format!(
+                "the next push is version {} (full-log twin: {}), expected 3",
+                pa.config_version, pb.config_version
+            ),
+        );
+    }
+    // Replay protection survives compaction + restart.
+    let again = a.plane.register(
+        &SignedCall {
+            method: "POST",
+            path: "/register",
+            body: &body,
+            auth: &captured,
+        },
+        req,
+    );
+    rep.unauthenticated(
+        Property::CompactionKeepsReplayProtection,
+        "replay of a pre-compaction request after compaction and restart",
+        again,
+    );
+}
+
+/// Kill the process (and, separately, lose power) after every prefix of the compaction plan.
+/// Whatever the disk holds then must open to exactly the pre-compaction state, and stay writable.
+fn compaction_crash(stages: Stages, dir: &Path, rep: &mut Report) {
+    let plan_len = (stages.compaction_plan)().len();
+    // Seed one directory with the head history; every crash point starts from a copy of it
+    // (the copy is a quiescent, fully fsynced log: exactly what a compaction starts from).
+    let Some(mut seed) = rig(rep, stages, dir, "crash-seed", base_cfg()) else {
+        return;
+    };
+    if !script_head(&mut seed, rep, &cast()) {
+        return;
+    }
+    let expected = seed.plane.state();
+    let seed_dir = seed.dir.clone();
+    drop(seed);
+    for power_loss in [false, true] {
+        for k in 0..=plan_len {
+            let case = CrashCase {
+                k,
+                plan_len,
+                power_loss,
+            };
+            crash_once(stages, dir, &seed_dir, &expected, case, rep);
+        }
+    }
+}
+
+/// Crash after `k` of the plan's `plan_len` operations, with or without the power-loss model.
+#[derive(Clone, Copy)]
+struct CrashCase {
+    k: usize,
+    plan_len: usize,
+    power_loss: bool,
+}
+
+fn crash_once(
+    stages: Stages,
+    dir: &Path,
+    seed_dir: &Path,
+    expected: &store::Canonical,
+    case: CrashCase,
+    rep: &mut Report,
+) {
+    let CrashCase {
+        k,
+        plan_len,
+        power_loss,
+    } = case;
+    let model = if power_loss { "power loss" } else { "kill" };
+    let label = format!("{model} after {k} of {plan_len} steps");
+    let dir = dir.join(format!(
+        "crash-{}-{k}",
+        if power_loss { "power" } else { "kill" }
+    ));
+    if let Err(e) = std::fs::create_dir_all(&dir).and_then(|()| {
+        std::fs::copy(seed_dir.join(store::LOG_FILE), dir.join(store::LOG_FILE)).map(|_| ())
+    }) {
+        rep.fail(
+            Property::CompactionCrashSafe,
+            format!("could not copy the seeded log: {e}"),
+        );
+        return;
+    }
+    let clock = ManualClock::new(START);
+    let cfg = base_cfg();
+    let lossy = LossyFs::new(Some(k));
+    let plane = match ControlPlane::open_with_fs(
+        &dir,
+        cfg.clone(),
+        Arc::new(clock.clone()),
+        stages,
+        Box::new(lossy.clone()),
+    ) {
+        Ok(p) => p,
+        Err(e) => {
+            rep.fail(Property::CompactionCrashSafe, format!("open failed: {e}"));
+            return;
+        }
+    };
+    let mut r = Rig {
+        plane,
+        clock: clock.clone(),
+        dir: dir.clone(),
+        stages,
+        cfg: cfg.clone(),
+    };
+    let c = cast();
+    let outcome = r.plane.compact();
+    if k >= plan_len {
+        if let Err(e) = &outcome {
+            rep.fail(
+                Property::CompactionCrashSafe,
+                format!("compaction failed with no fault injected ({label}): {e}"),
+            );
+        }
+    }
+    drop(r);
+    if power_loss {
+        if let Err(e) = lossy.power_loss() {
+            rep.fail(
+                Property::CompactionCrashSafe,
+                format!("could not apply the power-loss model: {e}"),
+            );
+            return;
+        }
+    }
+
+    let plane = match ControlPlane::open(&dir, cfg.clone(), Arc::new(clock.clone()), stages) {
+        Ok(p) => p,
+        Err(e) => {
+            rep.fail(
+                Property::CompactionCrashSafe,
+                format!("the store cannot be opened after {label}: {e}"),
+            );
+            return;
+        }
+    };
+    let mut r = Rig {
+        plane,
+        clock,
+        dir,
+        stages,
+        cfg,
+    };
+    rep.ensure(
+        r.plane.state() == *expected,
+        Property::CompactionCrashSafe,
+        format!("the state recovered after {label} differs from the state before the compaction"),
+    );
+    // Recovery leaves a store that accepts writes, and those writes are durable.
+    let res = r.register_at(&c.b, "after-crash", "http://10.0.0.9:1");
+    if rep
+        .setup(
+            Property::CompactionCrashSafe,
+            &format!("a register after recovery from {label}"),
+            res,
+        )
+        .is_none()
+    {
+        return;
+    }
+    if !reopen(&mut r, rep, Property::CompactionCrashSafe) {
+        return;
+    }
+    rep.ensure(
+        r.plane.bound_key("after-crash") == Some(c.b.public_key()),
+        Property::CompactionCrashSafe,
+        format!("a record written after recovery from {label} was lost by the next restart"),
+    );
+}
+
 const SCENARIOS: &[Scenario] = &[
     valid_flow,
     unsigned,
@@ -896,6 +1545,11 @@ const SCENARIOS: &[Scenario] = &[
     config_push_and_verification,
     durability,
     storage_failure,
+    enrollment,
+    empty_allowlist,
+    signed_list,
+    compaction_equivalence,
+    compaction_crash,
 ];
 
 /// Run every scenario against an implementation built from `stages`; return every violated

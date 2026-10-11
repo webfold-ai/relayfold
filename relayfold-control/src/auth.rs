@@ -1,5 +1,5 @@
-//! Request authentication: every mutating call is signed by the caller's dialkey-derived Ed25519
-//! key. The identity is `transport::dialkey::native_keypair(dialkey).public_key()`, which is also
+//! Request authentication: every call (reads included) is signed by the caller's dialkey-derived
+//! Ed25519 key. The identity is `transport::dialkey::native_keypair(dialkey).public_key()`, which is also
 //! what `transport::dialkey::peer_id(dialkey)` returns since transport 0.2.0 (d4745b9). Up to
 //! 30fdaf7 `peer_id` returned the 32-byte secret *seed* instead, so this crate never used it;
 //! it is kept off the wire path (`public_key_of` calls `native_keypair`) and tests pin both to the
@@ -7,7 +7,7 @@
 //!
 //! # Wire format
 //!
-//! Four headers on every mutating request:
+//! Four headers on every request, `GET /instances` included:
 //!
 //! | header | value |
 //! |---|---|
@@ -141,6 +141,14 @@ pub enum NonceVerdict {
     Full,
 }
 
+/// One remembered nonce: what the replay window holds, and what a compaction snapshot persists.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct NonceEntry {
+    pub key: Key,
+    pub nonce: String,
+    pub ts: i64,
+}
+
 /// Bounded, deterministic replay window: `(key, nonce) -> timestamp`.
 #[derive(Debug)]
 pub struct NonceWindow {
@@ -168,6 +176,29 @@ impl NonceWindow {
 
     pub fn capacity(&self) -> usize {
         self.capacity
+    }
+
+    /// Every entry still live at `now` (pruned first), in key order.
+    pub fn live_entries(&mut self, now: i64) -> Vec<NonceEntry> {
+        self.prune(now);
+        self.seen
+            .iter()
+            .map(|((key, nonce), ts)| NonceEntry {
+                key: *key,
+                nonce: nonce.clone(),
+                ts: *ts,
+            })
+            .collect()
+    }
+
+    /// Re-admit persisted entries that are still live at `now`. Never rejects one for capacity:
+    /// dropping a live nonce reopens replay, so an over-full window just refuses new nonces
+    /// until entries age out.
+    pub fn restore(&mut self, entries: &[NonceEntry], now: i64) {
+        for e in entries {
+            self.seen.insert((e.key, e.nonce.clone()), e.ts);
+        }
+        self.prune(now);
     }
 
     /// Drop entries a request could no longer replay anyway (`now > ts + skew`).
@@ -200,6 +231,12 @@ pub fn nonce_fresh(
     now: i64,
 ) -> NonceVerdict {
     window.check_and_insert(key, nonce, ts, now)
+}
+
+/// Real enrollment / read-access decision: is `key` on the allowlist? An empty list admits
+/// nobody (closed by default).
+pub fn in_allowlist(list: &[Key], key: &Key) -> bool {
+    list.contains(key)
 }
 
 /// Only the key bound at register may heartbeat that id.
@@ -278,6 +315,16 @@ impl Verifier {
 
     pub fn window(&self) -> &NonceWindow {
         &self.window
+    }
+
+    /// The nonces a request could still replay at `now`: what a snapshot must persist.
+    pub fn live_nonces(&mut self, now: i64) -> Vec<NonceEntry> {
+        self.window.live_entries(now)
+    }
+
+    /// Seed the window from a snapshot (see [`NonceWindow::restore`]).
+    pub fn restore_nonces(&mut self, entries: &[NonceEntry], now: i64) {
+        self.window.restore(entries, now);
     }
 
     /// Authenticate one call against `clock`; on success returns the signer's public key.

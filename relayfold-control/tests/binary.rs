@@ -34,6 +34,9 @@ fn start(data_dir: &std::path::Path) -> (Running, String) {
         .arg(data_dir)
         .env("RELAYFOLD_CONTROL_DIALKEY", DK_CONTROL)
         .env("RELAYFOLD_ADMIN_KEYS", key_to_z32(&public_key_of(DK_ADMIN)))
+        .env("RELAYFOLD_ENROLLED_KEYS", key_to_z32(&public_key_of(DK_A)))
+        // Two records and the binary compacts on its own: the automatic path, in the real process.
+        .env("RELAYFOLD_COMPACT_AFTER", "2")
         .stdout(Stdio::piped())
         .stderr(Stdio::inherit())
         .spawn()
@@ -87,20 +90,47 @@ async fn the_binary_serves_signed_calls_and_refuses_unsigned_ones() {
     .await;
     assert!(signed.status().is_success(), "got {}", signed.status());
 
-    let list = client
+    // The read path is closed to the unsigned and to the unenrolled, open to the enrolled.
+    let open_read = client
         .get(format!("{base}/instances"))
         .send()
         .await
         .unwrap();
+    assert_eq!(open_read.status().as_u16(), 401);
+    let admin = Signer::from_dialkey(DK_ADMIN);
+    let not_enrolled = get_signed_instances(&client, &base, &admin, now_unix()).await;
+    assert_eq!(not_enrolled.status().as_u16(), 403);
+    let outsider = Signer::from_dialkey(DK_OUTSIDER);
+    let squat = post_signed(
+        &client,
+        &base,
+        &outsider,
+        "/register",
+        &register_body("bin-squat", "http://127.0.0.1:1"),
+        now_unix(),
+    )
+    .await;
+    assert_eq!(squat.status().as_u16(), 403);
+
+    let list = get_signed_instances(&client, &base, &a, now_unix()).await;
     let text = list.text().await.unwrap();
     assert!(
         text.contains("bin-1") && text.contains(&key_to_z32(&a.public_key())),
         "{text}"
     );
+    assert!(!text.contains("bin-squat"), "{text}");
     assert!(
         dir.path().join(relayfold_control::store::LOG_FILE).exists(),
         "the binary must be writing its log under the data dir"
     );
+
+    // bin-1 and the refused squat are two records: the binary compacted on its own.
+    let snapshot = dir.path().join(relayfold_control::store::SNAPSHOT_FILE);
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+    while !snapshot.exists() && std::time::Instant::now() < deadline {
+        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+    }
+    assert!(snapshot.exists(), "automatic compaction must have run");
 }
 
 #[test]

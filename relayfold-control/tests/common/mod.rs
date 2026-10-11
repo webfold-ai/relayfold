@@ -16,6 +16,9 @@ pub const DK_CONTROL: &str = "http-test-control-plane";
 pub const DK_ADMIN: &str = "http-test-admin";
 pub const DK_A: &str = "http-test-instance-a";
 pub const DK_B: &str = "http-test-instance-b";
+pub const DK_C: &str = "http-test-instance-c";
+/// Signs validly, is enrolled nowhere.
+pub const DK_OUTSIDER: &str = "http-test-outsider";
 
 static NEXT: AtomicU64 = AtomicU64::new(0);
 
@@ -43,8 +46,13 @@ pub fn tempdir(tag: &str) -> TempDir {
     TempDir(path)
 }
 
+/// The three instance keys are enrolled; the admin key and `DK_OUTSIDER` are not.
 pub fn config() -> ControlConfig {
-    ControlConfig::new(DK_CONTROL, vec![public_key_of(DK_ADMIN)])
+    ControlConfig::new(DK_CONTROL, vec![public_key_of(DK_ADMIN)]).with_enrolled(vec![
+        public_key_of(DK_A),
+        public_key_of(DK_B),
+        public_key_of(DK_C),
+    ])
 }
 
 pub struct Server {
@@ -115,6 +123,20 @@ pub async fn post_signed(
     ts: i64,
 ) -> Response {
     Signed::new(signer, path, body, ts).send(client, base).await
+}
+
+/// `GET /instances`, signed by `signer`.
+pub async fn get_signed_instances(
+    client: &Client,
+    base: &str,
+    signer: &Signer,
+    ts: i64,
+) -> Response {
+    let mut rb = client.get(format!("{base}/instances"));
+    for (name, value) in signer.sign_now("GET", "/instances", b"", ts).pairs() {
+        rb = rb.header(name, value);
+    }
+    rb.send().await.expect("request must complete")
 }
 
 pub fn register_body(id: &str, addr: &str) -> String {

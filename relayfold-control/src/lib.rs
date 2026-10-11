@@ -18,29 +18,32 @@
 //!   heartbeat inside the TTL is not healthy in `list()`.
 //! * **Durability** ([`store`]): an error-returning append path on `sangdb-log`; identities, bound
 //!   keys and `config_version` survive restart; a torn tail is truncated on open.
+//! * **Enrollment** ([`plane`]): `register` and `GET /instances` need a signer on the allowlist
+//!   (`ControlConfig::enrolled_keys`; empty = closed). A refused register is logged durably.
+//! * **Compaction** ([`compaction`], [`store`]): snapshot + truncate, crash-safe at every step,
+//!   `replay(snapshot + tail) == replay(full log)`, replay window and audit trail preserved.
 //! * **Checkable** ([`stages`], [`conformance`]): every decision point can be swapped for a wrong
 //!   one, and one checker judges the real implementation and its mutants.
 //!
 //! # Not built (disclosed)
 //!
-//! * **No enrollment policy.** Any keypair may register a new, unclaimed id; first-register-wins
-//!   protects an id once claimed, not the namespace. Gate enrollment at the network edge or add an
-//!   allowlist before exposing this beyond a trusted network.
-//! * **`GET /instances` is unauthenticated** (read-only, but it lists addresses and public keys).
+//! * **Enrollment is a static allowlist**, changed by restart; no per-id scoping, expiry or
+//!   runtime revocation, and an already-bound instance keeps heartbeating after its key is removed.
 //! * **Plain HTTP.** Requests are authenticated and configs are signed, but nothing is encrypted;
 //!   a signed config is integrity-protected, not confidential. No TLS/mTLS.
-//! * **The nonce window is memory-only.** A restart is covered by rejecting timestamps older than
-//!   the process start; an authenticated key can still fill the (bounded) window and make
-//!   others wait (429) until entries age out of the skew window.
-//! * **No log compaction.** The log holds registrations and config pushes only (heartbeats are not
-//!   logged), so it grows with fleet churn, not with time; `sangdb-log` offers `compact` but it is
-//!   not wired in.
+//! * **The nonce window is persisted only at compaction.** Nonces accepted since the last snapshot
+//!   are memory-only; a restart is covered for those by rejecting timestamps older than the
+//!   process start. An authenticated key can still fill the (bounded) window and make others
+//!   wait (429) until entries age out of the skew window.
+//! * **Compaction pauses the plane** while it runs and writes full (not incremental) snapshots;
+//!   the crash tests use a POSIX durability model, not a real power cut.
 //! * No multi-tenant dashboards, canary/staged rollout, RBAC'd admin UI, or auto-discovery. What
 //!   an instance does with a verified config is the instance's job.
 
 pub mod app;
 pub mod auth;
 pub mod clock;
+pub mod compaction;
 pub mod config;
 pub mod conformance;
 
