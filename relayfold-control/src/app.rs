@@ -2,7 +2,8 @@
 //! relayfold-based proxy instances, served by `servelet-h1`.
 //!
 //! Status mapping: no/invalid/stale/replayed credentials → **401**; a full replay window →
-//! **429**; authenticated but not the id's bound key (or not an admin) → **403**; unknown id →
+//! **429**; authenticated but not enrolled (`/register`, `GET /instances`; the body is exactly
+//! [`crate::plane::NOT_ENROLLED`]), not the id's bound key, or not an admin → **403**; unknown id →
 //! 404; a storage failure → 500 with nothing applied.
 
 use crate::auth::{RawAuth, SignedCall, H_KEY, H_NONCE, H_SIGNATURE, H_TIMESTAMP};
@@ -126,8 +127,20 @@ impl AppState {
             .await?
     }
 
+    /// The unauthenticated in-process view (operator / tests). HTTP uses [`AppState::list_signed`].
     pub async fn list(&self) -> Vec<InstanceView> {
         self.with_plane(|p| p.list()).await.unwrap_or_default()
+    }
+
+    /// `GET /instances`: a signed request from an enrolled key.
+    pub async fn list_signed(&self, call: OwnedCall) -> Result<Vec<InstanceView>, ControlError> {
+        self.with_plane(move |p| p.list_signed(&call.as_call()))
+            .await?
+    }
+
+    /// Compact the durable log now (see [`ControlPlane::compact`]).
+    pub async fn compact(&self) -> Result<crate::compaction::CompactionReport, ControlError> {
+        self.with_plane(|p| p.compact()).await?
     }
 
     pub async fn config_version(&self) -> u64 {
@@ -201,7 +214,9 @@ fn error_response(e: ControlError) -> Response {
             (StatusCode::TOO_MANY_REQUESTS, e.to_string())
         }
         ControlError::Unauthenticated(_) => (StatusCode::UNAUTHORIZED, e.to_string()),
-        ControlError::Forbidden(_) => (StatusCode::FORBIDDEN, e.to_string()),
+        ControlError::Forbidden(_) | ControlError::NotEnrolled => {
+            (StatusCode::FORBIDDEN, e.to_string())
+        }
         ControlError::BadRequest(_) => (StatusCode::BAD_REQUEST, e.to_string()),
         ControlError::NotFound => (StatusCode::NOT_FOUND, e.to_string()),
         // The io error can carry a filesystem path; the operator reads it from the process, not
@@ -259,7 +274,10 @@ async fn handle_list(req: Request) -> Response {
     let Some(state) = state_of(&req) else {
         return state_missing();
     };
-    json_array(&state.list().await)
+    match state.list_signed(OwnedCall::from_request(&req)).await {
+        Ok(views) => json_array(&views),
+        Err(e) => error_response(e),
+    }
 }
 
 async fn handle_config_push(req: Request) -> Response {

@@ -9,7 +9,7 @@ use common::*;
 use hashtrinity::codec::syntax::{parse_surface, AsTerm, Atom, Surface, SyntaxTerm};
 use relayfold_control::auth::{public_key_of, Signer};
 use relayfold_control::config::verify_config;
-use relayfold_control::{AppState, ControlPlane};
+use relayfold_control::{AppState, Clock, ControlPlane};
 use servelet_client::Client;
 use servelet_core::StatusCode;
 use std::sync::Arc;
@@ -37,12 +37,11 @@ fn field_str<'a>(term: &'a SyntaxTerm, key: &str) -> &'a str {
     s
 }
 
-async fn instances(client: &Client, base: &str) -> Vec<SyntaxTerm> {
-    let text = client
-        .get(format!("{base}/instances"))
-        .send()
+/// The fleet as an enrolled viewer (`DK_A`) sees it; `ts` must be within the skew of the server
+/// clock.
+async fn instances(client: &Client, base: &str, ts: i64) -> Vec<SyntaxTerm> {
+    let text = get_signed_instances(client, base, &Signer::from_dialkey(DK_A), ts)
         .await
-        .unwrap()
         .text()
         .await
         .unwrap();
@@ -79,18 +78,28 @@ async fn it_serves_over_servelet_h1_on_an_ephemeral_port() {
     .expect("server must answer within 5s")
     .unwrap();
     let raw = String::from_utf8_lossy(&raw).to_string();
-    assert!(raw.starts_with("HTTP/1.1 200"), "status line: {raw}");
+    // `GET /instances` is no longer open: the unsigned request is a 401 on the wire.
+    assert!(raw.starts_with("HTTP/1.1 401"), "status line: {raw}");
     assert!(
         raw.to_ascii_lowercase()
-            .contains("content-type: application/json"),
+            .contains("www-authenticate: relayfold-dialkey"),
         "{raw}"
-    );
-    assert!(
-        raw.ends_with("[]"),
-        "an empty fleet is an empty JSON array: {raw}"
     );
 
     let client = Client::new();
+    let signed = get_signed_instances(&client, &s.base, &Signer::from_dialkey(DK_A), START).await;
+    assert_eq!(signed.status(), StatusCode::OK);
+    assert!(signed
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .is_some_and(|v| v.contains("application/json")));
+    assert_eq!(
+        signed.text().await.unwrap(),
+        "[]",
+        "an empty fleet is an empty JSON array"
+    );
+
     let nf = client
         .get(format!("{}/no-such-route", s.base))
         .send()
@@ -122,7 +131,7 @@ async fn register_then_list_shows_the_real_instance() {
         resp.status()
     );
 
-    let items = instances(&client, &s.base).await;
+    let items = instances(&client, &s.base, s.clock.now_unix()).await;
     assert_eq!(items.len(), 1);
     assert_eq!(field_str(&items[0], "id"), "proxy-1");
     assert_eq!(field_str(&items[0], "addr"), "http://127.0.0.1:9001");
@@ -160,7 +169,7 @@ async fn heartbeat_updates_health_and_config_version() {
     .await;
     assert!(hb.status().is_success());
 
-    let items = instances(&client, &s.base).await;
+    let items = instances(&client, &s.base, s.clock.now_unix()).await;
     assert_eq!(field_str(&items[0], "config_version"), "v7");
     assert_eq!(
         field(&items[0], "healthy"),
@@ -185,7 +194,9 @@ async fn heartbeat_for_an_unregistered_instance_is_a_real_404_not_a_silent_creat
     .await;
     assert_eq!(hb.status(), StatusCode::NOT_FOUND);
     assert!(
-        instances(&client, &s.base).await.is_empty(),
+        instances(&client, &s.base, s.clock.now_unix())
+            .await
+            .is_empty(),
         "a heartbeat must never register"
     );
 }
@@ -414,7 +425,9 @@ async fn an_unauthenticated_register_is_a_401_and_creates_nothing() {
         .await
         .unwrap();
     assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
-    assert!(instances(&client, &s.base).await.is_empty());
+    assert!(instances(&client, &s.base, s.clock.now_unix())
+        .await
+        .is_empty());
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -444,7 +457,9 @@ async fn a_forged_signature_is_a_401() {
         tampered.send(&client, &s.base).await.status(),
         StatusCode::UNAUTHORIZED
     );
-    assert!(instances(&client, &s.base).await.is_empty());
+    assert!(instances(&client, &s.base, s.clock.now_unix())
+        .await
+        .is_empty());
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -498,7 +513,7 @@ async fn a_second_key_cannot_take_over_a_registered_id() {
     )
     .await;
     assert_eq!(takeover.status(), StatusCode::FORBIDDEN);
-    let items = instances(&client, &s.base).await;
+    let items = instances(&client, &s.base, s.clock.now_unix()).await;
     assert_eq!(
         field_str(&items[0], "addr"),
         "http://127.0.0.1:9006",
@@ -577,19 +592,28 @@ async fn an_instance_that_stops_heartbeating_is_not_healthy_in_the_list() {
     )
     .await;
     assert_eq!(
-        field(&instances(&client, &s.base).await[0], "healthy"),
+        field(
+            &instances(&client, &s.base, s.clock.now_unix()).await[0],
+            "healthy"
+        ),
         &true.to_term()
     );
 
     s.clock.advance(29);
     assert_eq!(
-        field(&instances(&client, &s.base).await[0], "healthy"),
+        field(
+            &instances(&client, &s.base, s.clock.now_unix()).await[0],
+            "healthy"
+        ),
         &true.to_term(),
         "29 s < ttl"
     );
     s.clock.advance(1);
     assert_eq!(
-        field(&instances(&client, &s.base).await[0], "healthy"),
+        field(
+            &instances(&client, &s.base, s.clock.now_unix()).await[0],
+            "healthy"
+        ),
         &false.to_term(),
         "30 s == ttl: expired"
     );
@@ -605,7 +629,10 @@ async fn an_instance_that_stops_heartbeating_is_not_healthy_in_the_list() {
     .await;
     assert!(hb.status().is_success());
     assert_eq!(
-        field(&instances(&client, &s.base).await[0], "healthy"),
+        field(
+            &instances(&client, &s.base, s.clock.now_unix()).await[0],
+            "healthy"
+        ),
         &true.to_term(),
         "a heartbeat revives it"
     );
@@ -684,7 +711,7 @@ async fn a_failing_disk_is_a_500_and_nothing_is_applied() {
         "internal error text must not leak to the caller: {body}"
     );
     assert!(
-        instances(&client, &base).await.is_empty(),
+        instances(&client, &base, START).await.is_empty(),
         "a register whose append failed must not appear"
     );
 }
@@ -726,4 +753,184 @@ async fn registry_state_survives_a_fresh_appstate_at_the_same_data_dir() {
         !list[0].healthy,
         "not heard from since restart => not healthy until it heartbeats"
     );
+}
+
+// ── enrollment, the signed read path, compaction ───────────────────────────────────────────
+
+#[tokio::test(flavor = "multi_thread")]
+async fn an_unenrolled_key_cannot_register_and_the_refusal_is_logged_durably() {
+    use relayfold_control::auth::key_to_z32;
+    use relayfold_control::plane::NOT_ENROLLED;
+    let s = spawn_control(config()).await;
+    let client = Client::new();
+    let outsider = Signer::from_dialkey(DK_OUTSIDER);
+
+    let resp = post_signed(
+        &client,
+        &s.base,
+        &outsider,
+        "/register",
+        &register_body("squatter", "http://127.0.0.1:6666"),
+        START,
+    )
+    .await;
+    assert_eq!(resp.status(), StatusCode::FORBIDDEN);
+    assert_eq!(
+        resp.text().await.unwrap(),
+        NOT_ENROLLED,
+        "the refusal text is stable"
+    );
+    assert!(instances(&client, &s.base, START).await.is_empty());
+
+    // An enrolled key registers the very same id: the namespace was never taken.
+    let a = Signer::from_dialkey(DK_A);
+    let ok = post_signed(
+        &client,
+        &s.base,
+        &a,
+        "/register",
+        &register_body("squatter", "http://127.0.0.1:7777"),
+        START,
+    )
+    .await;
+    assert!(ok.status().is_success());
+
+    // The refusal is in the durable log: a second reader of the same data dir sees it.
+    let reread = ControlPlane::open(
+        s.dir.path(),
+        config(),
+        Arc::new(s.clock.clone()),
+        relayfold_control::Stages::REAL,
+    )
+    .unwrap();
+    let rejections = reread.rejections();
+    assert_eq!(rejections.len(), 1, "{rejections:?}");
+    assert_eq!(rejections[0].id, "squatter");
+    assert_eq!(
+        key_to_z32(&rejections[0].key),
+        key_to_z32(&outsider.public_key())
+    );
+    assert_eq!(rejections[0].at, START);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn get_instances_needs_a_signed_request_from_an_enrolled_key() {
+    use relayfold_control::plane::NOT_ENROLLED;
+    let s = spawn_control(config()).await;
+    let client = Client::new();
+    let (a, admin, outsider) = (
+        Signer::from_dialkey(DK_A),
+        Signer::from_dialkey(DK_ADMIN),
+        Signer::from_dialkey(DK_OUTSIDER),
+    );
+    assert!(post_signed(
+        &client,
+        &s.base,
+        &a,
+        "/register",
+        &register_body("p1", "http://127.0.0.1:9101"),
+        START,
+    )
+    .await
+    .status()
+    .is_success());
+
+    // No credentials: 401 with the challenge header.
+    let r = client
+        .get(format!("{}/instances", s.base))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(r.status(), StatusCode::UNAUTHORIZED);
+
+    // A forged signature: A's key, the outsider's signature.
+    let mut forged = a.sign_now("GET", "/instances", b"", START);
+    forged.signature = outsider
+        .sign("GET", "/instances", b"", START, &forged.nonce)
+        .signature;
+    let mut rb = client.get(format!("{}/instances", s.base));
+    for (n, v) in forged.pairs() {
+        rb = rb.header(n, v);
+    }
+    assert_eq!(rb.send().await.unwrap().status(), StatusCode::UNAUTHORIZED);
+
+    // A signature A made for a different call is not a read credential.
+    let hb = a.sign_now("POST", "/heartbeat", b"{}", START);
+    let mut rb = client.get(format!("{}/instances", s.base));
+    for (n, v) in hb.pairs() {
+        rb = rb.header(n, v);
+    }
+    assert_eq!(rb.send().await.unwrap().status(), StatusCode::UNAUTHORIZED);
+
+    // Validly signed, not enrolled (an outsider, and the admin key): 403.
+    for who in [&outsider, &admin] {
+        let r = get_signed_instances(&client, &s.base, who, START).await;
+        assert_eq!(r.status(), StatusCode::FORBIDDEN);
+        assert_eq!(r.text().await.unwrap(), NOT_ENROLLED);
+    }
+
+    // Enrolled: 200 with the fleet; the identical bytes sent again are a replay: 401.
+    let signed = a.sign_now("GET", "/instances", b"", START);
+    let send = |h: [(&'static str, String); 4]| {
+        let mut rb = client.get(format!("{}/instances", s.base));
+        for (n, v) in h {
+            rb = rb.header(n, v);
+        }
+        rb.send()
+    };
+    let first = send(signed.pairs()).await.unwrap();
+    assert_eq!(first.status(), StatusCode::OK);
+    assert!(first.text().await.unwrap().contains("p1"));
+    let again = send(signed.pairs()).await.unwrap();
+    assert_eq!(again.status(), StatusCode::UNAUTHORIZED);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn compaction_keeps_the_fleet_and_the_binding_across_a_restart_over_http() {
+    let dir = tempdir("compact-http");
+    let clock = relayfold_control::ManualClock::new(START);
+    let (a, b) = (Signer::from_dialkey(DK_A), Signer::from_dialkey(DK_B));
+    let before;
+    {
+        let state = AppState::open(dir.path(), config(), Arc::new(clock.clone())).unwrap();
+        let base = spawn_on(relayfold_control::router(state.clone())).await;
+        let client = Client::new();
+        for (signer, id, addr) in [
+            (&a, "c1", "http://127.0.0.1:9201"),
+            (&b, "c2", "http://127.0.0.1:9202"),
+            (&a, "c1", "http://127.0.0.1:9203"),
+        ] {
+            assert!(post_signed(
+                &client,
+                &base,
+                signer,
+                "/register",
+                &register_body(id, addr),
+                START
+            )
+            .await
+            .status()
+            .is_success());
+        }
+        let report = state.compact().await.unwrap();
+        assert_eq!(report.records_folded, 3);
+        assert!(report.log_bytes_after < report.log_bytes_before);
+        before = instances(&client, &base, START).await.len();
+        assert_eq!(before, 2);
+    }
+    let state = AppState::open(dir.path(), config(), Arc::new(clock.clone())).unwrap();
+    let base = spawn_on(relayfold_control::router(state)).await;
+    let client = Client::new();
+    assert_eq!(instances(&client, &base, START).await.len(), before);
+    // The binding survived the compaction: B cannot take over c1.
+    let r = post_signed(
+        &client,
+        &base,
+        &b,
+        "/register",
+        &register_body("c1", "http://127.0.0.1:6000"),
+        START,
+    )
+    .await;
+    assert_eq!(r.status(), StatusCode::FORBIDDEN);
 }

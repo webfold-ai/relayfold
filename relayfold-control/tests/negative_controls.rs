@@ -10,9 +10,28 @@ mod common;
 
 use common::tempdir;
 use relayfold_control::auth::{self, NonceVerdict};
+use relayfold_control::compaction::Step::{
+    FsyncDir as FD, FsyncLog as FL, FsyncSnapshot as FS, RenameLog as RL, RenameSnapshot as RS,
+    WriteLog as WL, WriteSnapshot as WS,
+};
+use relayfold_control::compaction::{Step, REAL_PLAN};
 use relayfold_control::conformance::{check, check_all, Property};
 use relayfold_control::liveness::{self, LivenessEvent};
 use relayfold_control::Stages;
+
+// Compaction step orders that are each one plausible way to get the protocol wrong. The real
+// order is `REAL_PLAN`: snapshot written, fsynced, renamed, directory fsynced — and only then
+// is the log replaced.
+/// Truncates (replaces the log, durably) while the snapshot's data was never fsynced.
+const TRUNCATE_BEFORE_SNAPSHOT_FSYNC: &[Step] = &[WS, RS, FD, WL, FL, RL, FD, FS];
+/// Never fsyncs the snapshot at all.
+const NO_SNAPSHOT_FSYNC: &[Step] = &[WS, RS, FD, WL, FL, RL, FD];
+/// Replaces the log first, writes the snapshot afterwards.
+const TRUNCATE_FIRST: &[Step] = &[WL, FL, RL, FD, WS, FS, RS, FD];
+/// Writes a durable snapshot and never replaces the log.
+const SNAPSHOT_ONLY: &[Step] = &[WS, FS, RS, FD];
+/// Replaces the log and never writes a snapshot.
+const TRUNCATE_ONLY: &[Step] = &[WL, FL, RL, FD];
 
 struct Mutant {
     name: &'static str,
@@ -197,6 +216,187 @@ fn mutants() -> Vec<Mutant> {
             },
             caught_by: Property::ConfigValidAccepted,
         },
+        // ── gap 1: enrollment ──
+        Mutant {
+            name: "enrollment: skips the allowlist check",
+            stages: Stages {
+                enrolled: |_, _| true,
+                ..Stages::REAL
+            },
+            caught_by: Property::UnenrolledRegisterRejected,
+        },
+        Mutant {
+            name: "enrollment: an empty allowlist means open",
+            stages: Stages {
+                enrolled: |list, key| list.is_empty() || auth::in_allowlist(list, key),
+                ..Stages::REAL
+            },
+            caught_by: Property::EmptyAllowlistIsClosed,
+        },
+        Mutant {
+            name: "enrollment: refuses everybody",
+            stages: Stages {
+                enrolled: |_, _| false,
+                ..Stages::REAL
+            },
+            caught_by: Property::ValidRequestAccepted,
+        },
+        Mutant {
+            name: "enrollment: refuses, but does not log the refusal",
+            stages: Stages {
+                record_rejection: |_, _| false,
+                ..Stages::REAL
+            },
+            caught_by: Property::RejectionIsLogged,
+        },
+        // ── gap 2: the signed read path ──
+        Mutant {
+            name: "list: skips the enrollment check",
+            stages: Stages {
+                may_list: |_, _| true,
+                ..Stages::REAL
+            },
+            caught_by: Property::ListUnenrolledRejected,
+        },
+        Mutant {
+            name: "list: admits an empty allowlist",
+            stages: Stages {
+                may_list: |list, key| list.is_empty() || auth::in_allowlist(list, key),
+                ..Stages::REAL
+            },
+            caught_by: Property::EmptyAllowlistIsClosed,
+        },
+        Mutant {
+            name: "list: refuses everybody",
+            stages: Stages {
+                may_list: |_, _| false,
+                ..Stages::REAL
+            },
+            caught_by: Property::ListEnrolledAccepted,
+        },
+        Mutant {
+            // The original gap 2: a read path that never authenticates and serves everybody.
+            name: "list: skips authentication (every caller is treated as an enrolled instance)",
+            stages: Stages {
+                read_auth: |_| Ok(auth::public_key_of("conformance-instance-a")),
+                ..Stages::REAL
+            },
+            caught_by: Property::ListUnsignedRejected,
+        },
+        Mutant {
+            name: "list: skips the signature check",
+            stages: Stages {
+                signature_ok: |_, _, _| true,
+                ..Stages::REAL
+            },
+            caught_by: Property::ListForgedRejected,
+        },
+        Mutant {
+            name: "list: drops the nonce check (a signed read can be replayed)",
+            stages: Stages {
+                nonce_fresh: |_, _, _, _, _| NonceVerdict::Fresh,
+                ..Stages::REAL
+            },
+            caught_by: Property::ListReplayRejected,
+        },
+        // ── gap 3: compaction ──
+        Mutant {
+            name: "compaction: the snapshot drops the replay (nonce) set",
+            stages: Stages {
+                snapshot_shape: |mut s| {
+                    s.nonces.clear();
+                    s
+                },
+                ..Stages::REAL
+            },
+            caught_by: Property::CompactionKeepsReplayProtection,
+        },
+        Mutant {
+            name: "compaction: the snapshot drops config_version",
+            stages: Stages {
+                snapshot_shape: |mut s| {
+                    s.config_version = 0;
+                    s
+                },
+                ..Stages::REAL
+            },
+            caught_by: Property::CompactionKeepsConfigVersion,
+        },
+        Mutant {
+            name: "compaction: the snapshot forgets which key each id is bound to",
+            stages: Stages {
+                snapshot_shape: |mut s| {
+                    for b in s.instances.values_mut() {
+                        b.key = [0; 32];
+                    }
+                    s
+                },
+                ..Stages::REAL
+            },
+            caught_by: Property::CompactionKeepsIdentity,
+        },
+        Mutant {
+            name: "compaction: the snapshot drops every instance",
+            stages: Stages {
+                snapshot_shape: |mut s| {
+                    s.instances.clear();
+                    s
+                },
+                ..Stages::REAL
+            },
+            caught_by: Property::CompactionKeepsIdentity,
+        },
+        Mutant {
+            name: "compaction: the snapshot drops the enrollment audit trail",
+            stages: Stages {
+                snapshot_shape: |mut s| {
+                    s.rejections.clear();
+                    s
+                },
+                ..Stages::REAL
+            },
+            caught_by: Property::CompactionKeepsAudit,
+        },
+        Mutant {
+            name: "compaction: truncates before the snapshot is fsynced",
+            stages: Stages {
+                compaction_plan: || TRUNCATE_BEFORE_SNAPSHOT_FSYNC,
+                ..Stages::REAL
+            },
+            caught_by: Property::CompactionCrashSafe,
+        },
+        Mutant {
+            name: "compaction: never fsyncs the snapshot",
+            stages: Stages {
+                compaction_plan: || NO_SNAPSHOT_FSYNC,
+                ..Stages::REAL
+            },
+            caught_by: Property::CompactionCrashSafe,
+        },
+        Mutant {
+            name: "compaction: truncates first, writes the snapshot afterwards",
+            stages: Stages {
+                compaction_plan: || TRUNCATE_FIRST,
+                ..Stages::REAL
+            },
+            caught_by: Property::CompactionCrashSafe,
+        },
+        Mutant {
+            name: "compaction: truncates and never writes a snapshot",
+            stages: Stages {
+                compaction_plan: || TRUNCATE_ONLY,
+                ..Stages::REAL
+            },
+            caught_by: Property::CompactionCrashSafe,
+        },
+        Mutant {
+            name: "compaction: writes a snapshot and never truncates the log",
+            stages: Stages {
+                compaction_plan: || SNAPSHOT_ONLY,
+                ..Stages::REAL
+            },
+            caught_by: Property::CompactionShrinksLog,
+        },
     ]
 }
 
@@ -235,11 +435,32 @@ fn a_mutant_that_swaps_in_the_real_function_is_still_accepted() {
 
 #[test]
 fn every_mutant_is_rejected_by_the_same_checker_for_the_property_it_breaks() {
+    let mutants = mutants();
+    // Each mutant gets its own scratch dir and thread: the checker is fsync-bound, so the
+    // mutants overlap instead of queueing behind one another's disk flushes.
+    let judged: Vec<Vec<relayfold_control::conformance::Violation>> = std::thread::scope(|s| {
+        let handles: Vec<_> = mutants
+            .iter()
+            .map(|m| {
+                s.spawn(move || {
+                    let dir = tempdir("nc-mutant");
+                    check_all(m.stages, dir.path())
+                })
+            })
+            .collect();
+        handles
+            .into_iter()
+            .map(|h| h.join().expect("checker thread panicked"))
+            .collect()
+    });
     let mut table = Vec::new();
-    for m in mutants() {
-        let dir = tempdir("nc-mutant");
-        let violations = check_all(m.stages, dir.path());
-        let props: Vec<Property> = violations.iter().map(|v| v.property).collect();
+    for (m, violations) in mutants.iter().zip(judged) {
+        let mut props: Vec<Property> = Vec::new();
+        for v in &violations {
+            if !props.contains(&v.property) {
+                props.push(v.property);
+            }
+        }
         table.push(format!("{:<66} -> {:?}", m.name, props));
         assert!(
             !violations.is_empty(),
@@ -272,4 +493,36 @@ fn check_is_ok_for_the_real_code_and_err_for_a_mutant_with_the_same_function() {
     );
     assert!(ok.is_ok());
     assert!(bad.is_err());
+}
+
+#[test]
+fn a_mutant_that_swaps_in_the_real_plan_and_the_identity_snapshot_is_still_accepted() {
+    // The compaction mutants are struct updates too; the checker must not reject the shape.
+    let same = Stages {
+        compaction_plan: || REAL_PLAN,
+        snapshot_shape: |s| s,
+        enrolled: auth::in_allowlist,
+        may_list: auth::in_allowlist,
+        ..Stages::REAL
+    };
+    check(same, tempdir("nc-same-plan").path()).expect("real-equivalent mutant must pass");
+}
+
+#[test]
+fn the_compaction_mutant_plans_really_differ_from_the_real_plan() {
+    for plan in [
+        TRUNCATE_BEFORE_SNAPSHOT_FSYNC,
+        NO_SNAPSHOT_FSYNC,
+        TRUNCATE_FIRST,
+        SNAPSHOT_ONLY,
+        TRUNCATE_ONLY,
+    ] {
+        assert_ne!(plan, REAL_PLAN);
+    }
+    // The real plan fsyncs the snapshot before the log is replaced, and fsyncs the directory in
+    // between: that ordering is the crash-safety argument the crash scenario checks.
+    let pos = |s: Step| REAL_PLAN.iter().position(|x| *x == s).unwrap();
+    assert!(pos(FS) < pos(RS));
+    assert!(pos(RS) < pos(RL));
+    assert!(REAL_PLAN[pos(RS) + 1] == FD);
 }
