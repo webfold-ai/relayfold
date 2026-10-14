@@ -2,3 +2,10 @@
 Cargo.lock
 relayfold/benchmarks/results/
 relayfold/benchmarks/__pycache__/
+# Agent scratch - never commit
+.harness/
+.box/
+.cache/
+__pycache__/
+*.pyc
+*.log
