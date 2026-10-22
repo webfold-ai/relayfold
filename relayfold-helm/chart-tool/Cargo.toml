@@ -13,4 +13,4 @@ path = "src/main.rs"
 # `hex`/`base64` are not truly optional despite being listed features: hashtrinity's own
 # `crypto.rs` is unconditionally compiled and unconditionally imports both — the same disclosed
 # upstream gap relayfold's and relayfold-agents' Cargo.toml already documented.
-hashtrinity = { git = "https://github.com/Ptyktos/hashtrinity", rev = "2c36b995c82c073c71df7c28b14c62665d62cbf0", default-features = false, features = ["codec", "hex", "base64"] }
+hashtrinity = { git = "https://github.com/Ptyktos/hashtrinity", rev = "8de00eff38d3ffa5393190c2358a9e54dac5bc2f", default-features = false, features = ["codec", "hex", "base64"] }
