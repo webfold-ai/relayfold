@@ -9,19 +9,21 @@ license = "Apache-2.0"
 hashtrinity = { git = "https://github.com/Ptyktos/hashtrinity", rev = "8de00eff38d3ffa5393190c2358a9e54dac5bc2f", default-features = false, features = ["codec", "derive", "hex", "base64"] }
 # Identity: `transport::dialkey::native_keypair` derives the Ed25519 keypair from a dialkey,
 # `transport::signed_dns::{Keypair, PublicKey}` sign/verify. Pinned by rev like the servelet deps.
-# d4745b9 is transport 0.2.0: `dialkey::peer_id` returns the PUBLIC key (it returned the secret seed
-# up to 30fdaf7). Default features stay on; this crate has not been built with
-# `--no-default-features` (transport 0.2.0 gates `http_client`, but that is not exercised here).
-transport = { git = "https://github.com/Ptyktos/transport", rev = "d4745b979cfa0b61d30e310607316309c71f6839" }
+# 1f15139 is transport 0.3.0 on the hashtrinity 8de00ef pin: `dialkey::peer_id` returns the PUBLIC key
+# (it returned the secret seed up to 30fdaf7), and this crate's hashtrinity, servelet and transport
+# all name the same hashtrinity so the graph holds one copy. transport itself pins relayfold at the
+# previous commit of this repo (2a79c5a), not this one: a commit cannot name itself. Default features
+# stay on; this crate has not been built with `--no-default-features`.
+transport = { git = "https://github.com/Ptyktos/transport", rev = "1f1513393e3fd870ba1d1529797ae0dd87a8f787" }
 # The durable append log (CRC32-framed, fsync policy, torn-tail truncation on open). It is a
 # sibling crate inside the sangdb repo; the `sangdb` crate itself is no longer used here.
 sangdb-log = { git = "https://github.com/Ptyktos/sangdb", rev = "bb76e6c487e4d33c6d41c57fdc11be36c627bc5e" }
 # The HTTP kernel is servelet (Ptyktos/servelet), pinned by rev per
 # servelet/docs/MIGRATION.md. core/router are the spine; client is the outbound half.
-servelet-core = { git = "https://github.com/Ptyktos/servelet.git", rev = "8b7150ad7873b691442ea5faeeec50f71cc9591f" }
-servelet-router = { git = "https://github.com/Ptyktos/servelet.git", rev = "8b7150ad7873b691442ea5faeeec50f71cc9591f" }
-servelet-client = { git = "https://github.com/Ptyktos/servelet.git", rev = "8b7150ad7873b691442ea5faeeec50f71cc9591f" }
-servelet-h1 = { git = "https://github.com/Ptyktos/servelet.git", rev = "8b7150ad7873b691442ea5faeeec50f71cc9591f" }
+servelet-core = { git = "https://github.com/Ptyktos/servelet.git", rev = "cba6f1649736f653d12cfe7d9281578c3cf4e4b0" }
+servelet-router = { git = "https://github.com/Ptyktos/servelet.git", rev = "cba6f1649736f653d12cfe7d9281578c3cf4e4b0" }
+servelet-client = { git = "https://github.com/Ptyktos/servelet.git", rev = "cba6f1649736f653d12cfe7d9281578c3cf4e4b0" }
+servelet-h1 = { git = "https://github.com/Ptyktos/servelet.git", rev = "cba6f1649736f653d12cfe7d9281578c3cf4e4b0" }
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "sync", "time", "io-util"] }
 
 [dev-dependencies]
