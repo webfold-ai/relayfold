@@ -6,7 +6,7 @@ description = "A fleet-management control plane for relayfold-based proxy instan
 license = "Apache-2.0"
 
 [dependencies]
-hashtrinity = { git = "https://github.com/Ptyktos/hashtrinity", rev = "8de00eff38d3ffa5393190c2358a9e54dac5bc2f", default-features = false, features = ["codec", "derive", "hex", "base64"] }
+hashtrinity = { git = "https://github.com/Ptyktos/hashtrinity", rev = "92a88636ab0e59ffe366ace07c019cd1f35a0bfa", default-features = false, features = ["codec", "derive", "hex", "base64"] }
 # Identity: `transport::dialkey::native_keypair` derives the Ed25519 keypair from a dialkey,
 # `transport::signed_dns::{Keypair, PublicKey}` sign/verify. Pinned by rev like the servelet deps.
 # 1f15139 is transport 0.3.0 on the hashtrinity 8de00ef pin: `dialkey::peer_id` returns the PUBLIC key
