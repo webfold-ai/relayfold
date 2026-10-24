@@ -12,7 +12,7 @@ license = "Apache-2.0"
 # compiled and unconditionally imports both `hex` and `base64` (same upstream gap relayfold's
 # own Cargo.toml already disclosed) — `default-features = false` without them fails to build
 # hashtrinity itself.
-hashtrinity = { git = "https://github.com/Ptyktos/hashtrinity", rev = "2c36b995c82c073c71df7c28b14c62665d62cbf0", default-features = false, features = ["codec", "base64", "hex"] }
+hashtrinity = { git = "https://github.com/Ptyktos/hashtrinity", rev = "92a88636ab0e59ffe366ace07c019cd1f35a0bfa", default-features = false, features = ["codec", "base64", "hex"] }
 tokio = { version = "1", default-features = false, features = ["net", "io-util", "rt", "rt-multi-thread", "macros", "sync", "time"] }
 
 [dev-dependencies]
