@@ -12,5 +12,5 @@ path = "src/main.rs"
 [dependencies]
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-biota-http-server = { git = "https://github.com/Ptyktos/biota" }
+biota-http-server = { git = "https://github.com/Ptyktos/biota", rev = "106878701c6fafe48cfc4acb4fc9be1de8852c0b" }
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "signal"] }
