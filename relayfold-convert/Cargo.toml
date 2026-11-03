@@ -10,7 +10,7 @@ license = "Apache-2.0"
 # serde_yaml). `hex`+`base64` are NOT optional in practice despite being listed features:
 # hashtrinity's own `crypto.rs` is unconditionally compiled and unconditionally imports both
 # (the same upstream gap relayfold's own Cargo.toml already disclosed).
-hashtrinity = { git = "https://github.com/Ptyktos/hashtrinity", rev = "92a88636ab0e59ffe366ace07c019cd1f35a0bfa", default-features = false, features = ["codec", "hex", "base64"] }
+hashtrinity = { git = "https://github.com/Ptyktos/hashtrinity", rev = "b6aa208afa682ba0951f1b74941d140fbfa9fc50", default-features = false, features = ["codec", "hex", "base64"] }
 
 [lib]
 name = "relayfold_convert"
