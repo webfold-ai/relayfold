@@ -101,7 +101,7 @@ pub fn verify_ed25519(key: &Key, msg: &[u8], sig: &[u8; 64]) -> bool {
 }
 
 pub fn sha256(bytes: &[u8]) -> [u8; 32] {
-    hashtrinity::crypto::sha256(bytes)
+    wirefold::crypto::sha256(bytes)
 }
 
 fn put(out: &mut Vec<u8>, field: &[u8]) {

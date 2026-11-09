@@ -6,9 +6,6 @@ description = "Zanzibar-style temporal relationships + Pingora-shaped load-balan
 license = "Apache-2.0"
 
 [dependencies]
-# Only `Coord`/`CoordInv`/`CoordMap`/`PHI` are used here — no codec/validate/syncfold/derive,
-# unlike bedrock's own much larger feature set. `hex`+`base64` are NOT optional in practice
-# despite being listed as features: hashtrinity's own `crypto.rs` is unconditionally compiled
-# and unconditionally imports both, so `default-features = false` without them fails to build
-# hashtrinity itself (an upstream feature-gating gap, not something to route around here).
-hashtrinity = { git = "https://github.com/Ptyktos/hashtrinity", rev = "b6aa208afa682ba0951f1b74941d140fbfa9fc50", default-features = false, features = ["hex", "base64"] }
+# Only `Coord`/`CoordInv`/`CoordMap`/`PHI` are used here (re-exported by wirefold from
+# apeiron's table module) — no codec/validate/derive features are needed.
+wirefold = { version = "0.1.0", git = "https://github.com/webfold-ai/wirefold", rev = "ba9a71284844cd1a7f14ae3b7105ad972aaa9e07", default-features = false, features = [] }

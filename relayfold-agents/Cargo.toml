@@ -6,13 +6,9 @@ description = "A real, crash-isolated external agent protocol + Rust SDK for rel
 license = "Apache-2.0"
 
 [dependencies]
-# `codec` for SyntaxTerm/Surface::Json (the wire format — see WHY-NOT-SERDE_JSON in lib.rs),
-# `base64` to carry request/response bodies as JSON-safe strings. `hex` is NOT optional in
-# practice despite being a listed feature: hashtrinity's own `crypto.rs` is unconditionally
-# compiled and unconditionally imports both `hex` and `base64` (same upstream gap relayfold's
-# own Cargo.toml already disclosed) — `default-features = false` without them fails to build
-# hashtrinity itself.
-hashtrinity = { git = "https://github.com/Ptyktos/hashtrinity", rev = "b6aa208afa682ba0951f1b74941d140fbfa9fc50", default-features = false, features = ["codec", "base64", "hex"] }
+# `codec` for SyntaxTerm/Surface::Json (the wire format — see WHY-NOT-SERDE_JSON in lib.rs).
+# Request/response bodies travel as JSON-safe base64 strings.
+wirefold = { version = "0.1.0", git = "https://github.com/webfold-ai/wirefold", rev = "ba9a71284844cd1a7f14ae3b7105ad972aaa9e07", default-features = false, features = ["codec"] }
 tokio = { version = "1", default-features = false, features = ["net", "io-util", "rt", "rt-multi-thread", "macros", "sync", "time"] }
 
 [dev-dependencies]

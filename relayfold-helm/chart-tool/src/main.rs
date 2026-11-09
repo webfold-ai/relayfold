@@ -1,7 +1,7 @@
 //! `relayfold-chart-tool` — validates `chart/relayfold-proxy/values.yaml` against the real schema
 //! `relayfold-proxy-runtime`'s env vars actually read, and renders typed environment presets.
 //!
-//! Uses `hashtrinity::codec::syntax` (`Surface::Yaml`) for all YAML parsing/rendering, not
+//! Uses `wirefold::codec::syntax` (`Surface::Yaml`) for all YAML parsing/rendering, not
 //! `serde_yaml` — this workspace's standing rule (see `relayfold-agents`' own `protocol.rs` doing
 //! the identical thing for JSON).
 //!
@@ -9,7 +9,7 @@
 //!   relayfold-chart-tool validate <values.yaml>   — real schema check, exits non-zero on failure
 //!   relayfold-chart-tool render <dev|staging|prod> — prints a typed preset as YAML to stdout
 
-use hashtrinity::codec::syntax::{
+use wirefold::codec::syntax::{
     field, field_num, field_str, parse_surface, render_surface, term_str, Atom, SyntaxError,
     SyntaxTerm,
 };
@@ -37,7 +37,7 @@ fn as_fields(term: &SyntaxTerm) -> Result<&[(String, SyntaxTerm)], SyntaxError> 
 /// chart's `templates/deployment.yaml` maps them from — this validator exists so a values.yaml
 /// with a typo'd or missing key fails at `helm lint`-adjacent time, not as a crash-looping pod.
 fn validate(text: &str) -> Result<(), SyntaxError> {
-    let term = parse_surface(hashtrinity::codec::syntax::Surface::Yaml, text)?;
+    let term = parse_surface(wirefold::codec::syntax::Surface::Yaml, text)?;
     let root = as_fields(&term)?;
 
     let image = nested_bu(&term, "image")?;
@@ -165,7 +165,7 @@ fn main() {
             match preset(env) {
                 Ok(term) => println!(
                     "{}",
-                    render_surface(&term, hashtrinity::codec::syntax::Surface::Yaml)
+                    render_surface(&term, wirefold::codec::syntax::Surface::Yaml)
                 ),
                 Err(msg) => {
                     eprintln!("{msg}");
@@ -237,7 +237,7 @@ service:
     fn each_of_the_three_presets_renders_and_revalidates() {
         for env in ["dev", "staging", "prod"] {
             let term = preset(env).unwrap();
-            let yaml = render_surface(&term, hashtrinity::codec::syntax::Surface::Yaml);
+            let yaml = render_surface(&term, wirefold::codec::syntax::Surface::Yaml);
             validate(&yaml).unwrap_or_else(|e| {
                 panic!(
                     "{env} preset must validate against its own schema: {}",

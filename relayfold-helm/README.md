@@ -20,7 +20,7 @@ not a Go template.
   socket (see tests).
 - **`chart-tool/`** — `relayfold-chart-tool`, a Rust CLI validating `values.yaml` against the
   real env-var schema `proxy-runtime` reads (not an invented schema), and rendering typed
-  `dev`/`staging`/`prod` presets. Uses `hashtrinity::codec::syntax` (`Surface::Yaml`), not
+  `dev`/`staging`/`prod` presets. Uses `wirefold::codec::syntax` (`Surface::Yaml`), not
   `serde_yaml` — this workspace's standing rule.
 
 ## Verified, not asserted

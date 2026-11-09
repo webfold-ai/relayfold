@@ -3,7 +3,7 @@
 //! # Why this lives here rather than in servelet
 //!
 //! `biota-http-server` carried `actix::Json`, a typed body extractor over
-//! `hashtrinity::AsTerm` — `#[derive(Term)]` DTOs, parsed with hashtrinity's own codec rather
+//! `wirefold::AsTerm` — `#[derive(Term)]` DTOs, parsed with wirefold's own codec rather
 //! than a second grammar. servelet does not have it, and it is genuinely not an identity
 //! adapter: `Router::route` already takes `Fn(Request) -> Future<Response>`, so the
 //! `to_handler*_async` shims collapsed into it and were deleted (82 call sites in
@@ -11,7 +11,7 @@
 //!
 //! It is kept **local** rather than proposed upstream, deliberately. servelet is an active repo
 //! with its own worker adding units; adding a crate to it from here would collide. This is ~60
-//! lines with no dependency beyond the `hashtrinity` this workspace already uses, so the cost of
+//! lines with no dependency beyond the `wirefold` this workspace already uses, so the cost of
 //! a local copy is lower than the cost of a cross-repo coupling.
 //!
 //! If a second consumer appears, the honest move is to lift this into servelet then, with the
@@ -19,7 +19,7 @@
 
 use std::fmt;
 
-use hashtrinity::codec::syntax::{AsTerm, Surface, SyntaxTerm as Term};
+use wirefold::codec::syntax::{AsTerm, Surface, SyntaxTerm as Term};
 use servelet_core::{Request, Response, StatusCode};
 
 /// A JSON body, typed. `Json<T>(T)` mirrors actix's `web::Json<T>` so handler code ports by
@@ -62,7 +62,7 @@ impl<T: AsTerm> Json<T> {
     /// Decode raw JSON bytes into `T` (the body-level half of [`Json::from_request`]).
     pub fn from_bytes(bytes: &[u8]) -> Result<Json<T>, JsonError> {
         let body = std::str::from_utf8(bytes).map_err(|e| JsonError::new(e.to_string()))?;
-        let term = hashtrinity::codec::syntax::parse_surface(Surface::Json, body)
+        let term = wirefold::codec::syntax::parse_surface(Surface::Json, body)
             // `SyntaxError` has no Display, so name its Debug form rather than losing the
             // parse position — a 400 that cannot say what was wrong is not debuggable.
             .map_err(|e| JsonError::new(format!("{e:?}")))?;
@@ -75,7 +75,7 @@ impl<T: AsTerm> Json<T> {
     /// Serialize to JSON bytes.
     pub fn encode(&self) -> Vec<u8> {
         let term: Term = self.0.to_term();
-        hashtrinity::codec::syntax::render_surface(&term, Surface::Json).into_bytes()
+        wirefold::codec::syntax::render_surface(&term, Surface::Json).into_bytes()
     }
 
     /// Serialize as a JSON response with the right Content-Type.

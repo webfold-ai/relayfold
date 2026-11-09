@@ -1,12 +1,12 @@
 //! The wire protocol between a `relayfold`-based proxy and an external agent process — one
 //! [`AgentRequest`] in, one [`Decision`] back, framed as a 4-byte little-endian length prefix
-//! followed by that many bytes of `hashtrinity::codec::syntax::Surface::Json`-rendered term.
+//! followed by that many bytes of `wirefold::codec::syntax::Surface::Json`-rendered term.
 //!
 //! **Why not `serde_json`**: this workspace already has a real, zero-extra-dependency JSON
-//! surface (`hashtrinity::codec::syntax`) — the same one bedrock's HTTP layer uses for its own
+//! surface (`wirefold::codec::syntax`) — the same one bedrock's HTTP layer uses for its own
 //! `HttpCall`/extractor terms. Reaching for `serde`/`serde_json` here would mean two JSON
 //! implementations doing the same job in the same dependency graph; this crate hand-implements
-//! `AsTerm` for its two wire types instead, the same way `HttpCall` does in hashtrinity itself.
+//! `AsTerm` for its two wire types instead, the same way `HttpCall` does in wirefold itself.
 //!
 //! **Framing is one-shot, not multiplexed**: each hook call opens one connection, sends one
 //! `AgentRequest`, reads one `Decision`, and the connection closes. This is honestly simpler than
@@ -15,9 +15,9 @@
 //! production traffic would want a persistent, request-ID-tagged multiplexed stream instead; that
 //! is a disclosed follow-up; this establishes the contract, not the final performance shape.
 
-use hashtrinity::base64::engine::general_purpose::STANDARD_NO_PAD;
-use hashtrinity::base64::Engine;
-use hashtrinity::codec::syntax::{
+use wirefold::base64::engine::general_purpose::STANDARD_NO_PAD;
+use wirefold::base64::Engine;
+use wirefold::codec::syntax::{
     field, field_num, field_str, term_str, AsTerm, Atom, Surface, SyntaxError, SyntaxTerm,
 };
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
@@ -241,7 +241,7 @@ pub async fn write_frame<W: AsyncWrite + Unpin, T: AsTerm>(
     w: &mut W,
     value: &T,
 ) -> std::io::Result<()> {
-    let rendered = hashtrinity::codec::syntax::render_surface(&value.to_term(), Surface::Json);
+    let rendered = wirefold::codec::syntax::render_surface(&value.to_term(), Surface::Json);
     let bytes = rendered.into_bytes();
     w.write_all(&(bytes.len() as u32).to_le_bytes()).await?;
     w.write_all(&bytes).await?;
@@ -268,7 +268,7 @@ pub async fn read_frame<R: AsyncRead + Unpin, T: AsTerm>(r: &mut R) -> std::io::
     r.read_exact(&mut buf).await?;
     let text = String::from_utf8(buf)
         .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
-    let term = hashtrinity::codec::syntax::parse_surface(Surface::Json, &text)
+    let term = wirefold::codec::syntax::parse_surface(Surface::Json, &text)
         .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e.msg))?;
     T::from_term(&term).map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e.msg))
 }

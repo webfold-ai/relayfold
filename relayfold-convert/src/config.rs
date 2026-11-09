@@ -2,16 +2,16 @@
 //! itself (github.com/Ptyktos/relayfold) is built up purely in Rust today
 //! (`Registry::new().upstream(route, Upstream::http(host, port)).load_balance(algo).allow(...)`)
 //! — there was no file format to convert INTO until this crate defined one. Deliberately a plain
-//! YAML shape (via `hashtrinity::codec::syntax::Surface::Yaml`, never `serde_yaml`), not a new
+//! YAML shape (via `wirefold::codec::syntax::Surface::Yaml`, never `serde_yaml`), not a new
 //! DSL like zentinel's own KDL target format.
 //!
 //! **Why `upstreams` is a flat, path-joined list instead of nested under each route** (a real
-//! constraint, not a style choice): hashtrinity's own `render_yaml` is explicitly documented as
+//! constraint, not a style choice): wirefold's own `render_yaml` is explicitly documented as
 //! "mainly for round-trip testing, not YAML generation" — and empirically, a `Fourth` list nested
 //! inside a `Bu` mapping that is itself an item of another `Fourth` list (route → its own
 //! `upstreams` list, three levels of nesting) renders with broken indentation and fails to parse
 //! back. Two-level nesting (a flat list of flat-scalar mappings) round-trips perfectly — verified
-//! directly against `hashtrinity::codec::syntax::{render_surface, parse_surface}` before choosing
+//! directly against `wirefold::codec::syntax::{render_surface, parse_surface}` before choosing
 //! this shape. So `routes` carries only path + algorithm, and `upstreams` is its own top-level
 //! list where each entry names which route it belongs to by `path` — a relational join, not a
 //! nested tree. Loading this into `relayfold::Registry` groups `upstreams` by `path` and calls
@@ -21,7 +21,7 @@
 //! is deliberately NOT done here — this crate's job is emitting a correct config, not depending
 //! on `relayfold` itself. That loader is one straightforward function for whoever wires it in.
 
-use hashtrinity::codec::syntax::{
+use wirefold::codec::syntax::{
     field_list, field_opt, field_str, term_str, AsTerm, Atom, Surface, SyntaxError, SyntaxTerm,
 };
 
@@ -71,11 +71,11 @@ impl ProxyConfig {
 
     #[must_use]
     pub fn to_yaml(&self) -> String {
-        hashtrinity::codec::syntax::render_surface(&self.to_term(), Surface::Yaml)
+        wirefold::codec::syntax::render_surface(&self.to_term(), Surface::Yaml)
     }
 
     pub fn from_yaml(input: &str) -> Result<Self, SyntaxError> {
-        let term = hashtrinity::codec::syntax::parse_surface(Surface::Yaml, input)?;
+        let term = wirefold::codec::syntax::parse_surface(Surface::Yaml, input)?;
         Self::from_term(&term)
     }
 }
