@@ -21,7 +21,7 @@
 use crate::auth::{hex_decode, hex_encode, Key, Signer};
 use crate::json::Json;
 use crate::stages::Stages;
-use hashtrinity::Term;
+use wirefold::Term;
 
 const CONFIG_DOMAIN: &[u8] = b"relayfold-control/config/v1";
 

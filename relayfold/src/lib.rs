@@ -26,7 +26,7 @@
 //! original tests were written against `Proxy`'s full surface; they're ported here against
 //! `Registry` instead — behavior-identical for everything that doesn't touch HTTP.
 
-use hashtrinity::{Coord, CoordMap, PHI};
+use wirefold::{Coord, CoordMap, PHI};
 use std::sync::Arc;
 
 // ── Zanzibar/SpiceDB-style temporal relationship store ──────────────────────────────────────
@@ -810,7 +810,7 @@ pub fn pick_index(
 }
 
 /// Convenience: coordinate a hashable identity the same way every caller here already does
-/// (`hashtrinity::Coord::coord`), so nobody has to import the trait just to call [`pick_index`].
+/// (`wirefold::Coord::coord`), so nobody has to import the trait just to call [`pick_index`].
 #[must_use]
 pub fn coord_of<T: Coord>(value: &T) -> u64 {
     value.coord()

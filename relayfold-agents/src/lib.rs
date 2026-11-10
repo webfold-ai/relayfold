@@ -126,9 +126,9 @@ impl AgentClient {
 }
 
 /// Convenience for `AgentRequest`'s `to_term`/`from_term` re-export path — lets a consumer write
-/// `relayfold_agents::AsTerm` without also depending on `hashtrinity` directly just to name the
+/// `relayfold_agents::AsTerm` without also depending on `wirefold` directly just to name the
 /// trait bound on a generic function.
-pub use hashtrinity::codec::syntax::AsTerm as WireTerm;
+pub use wirefold::codec::syntax::AsTerm as WireTerm;
 
 #[cfg(test)]
 mod tests {
