@@ -166,3 +166,50 @@ async fn health_checks_take_a_failing_upstream_out_of_rotation() {
     }
     probes.abort();
 }
+
+#[tokio::test]
+async fn headers_named_by_connection_are_not_forwarded_either_way() {
+    let port = free_port();
+    let router = Router::new().fallback(|req: Request| async move {
+        let h = |n: &str| {
+            req.headers()
+                .get(n)
+                .and_then(|v| v.to_str().ok())
+                .unwrap_or("-")
+                .to_string()
+        };
+        let seen = format!("local={} keep={}", h("x-session-state"), h("x-keep"));
+        Response::ok(seen)
+            .with_header("connection", "X-Up-Local")
+            .with_header("x-up-local", "secret")
+            .with_header("x-up-keep", "yes")
+    });
+    serve_on(port, router).await;
+    let front = proxy_in_front(Proxy::new(
+        LoadBalance::RoundRobin,
+        &[format!("http://127.0.0.1:{port}")],
+    ))
+    .await;
+
+    let resp = Client::new()
+        .get(format!("{front}/x"))
+        .header("connection", "x-session-state")
+        .header("x-session-state", "abc")
+        .header("x-keep", "yes")
+        .send()
+        .await
+        .unwrap();
+    assert!(
+        resp.headers.get("x-up-local").is_none(),
+        "a response field named by Connection is dropped"
+    );
+    assert_eq!(
+        resp.headers.get("x-up-keep").and_then(|v| v.to_str().ok()),
+        Some("yes")
+    );
+    let text = resp.text().await.unwrap();
+    assert_eq!(
+        text, "local=- keep=yes",
+        "a request field named by Connection is dropped, the rest forwarded"
+    );
+}

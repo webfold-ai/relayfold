@@ -33,6 +33,32 @@ const HOP_BY_HOP: &[&str] = &[
     "host",
 ];
 
+/// Copy `src` minus the fields that describe one connection rather than the message: the fixed
+/// hop-by-hop list, plus every field a `Connection` header names (RFC 9110 §7.6.1), matched
+/// case-insensitively across all `Connection` fields in the message.
+fn end_to_end_headers(src: &HeaderMap) -> HeaderMap {
+    let nominated: Vec<String> = src
+        .iter()
+        .filter(|(name, _)| name.eq_ignore_ascii_case("connection"))
+        .filter_map(|(_, value)| value.to_str().ok())
+        .flat_map(|v| {
+            v.split(',')
+                .map(|t| t.trim().to_ascii_lowercase())
+                .collect::<Vec<_>>()
+        })
+        .filter(|t| !t.is_empty())
+        .collect();
+    let mut out = HeaderMap::new();
+    for (name, value) in src.iter() {
+        let lower = name.to_ascii_lowercase();
+        if HOP_BY_HOP.contains(&lower.as_str()) || nominated.contains(&lower) {
+            continue;
+        }
+        out.append(name, value.clone());
+    }
+    out
+}
+
 /// Parse `http://host:port` / `https://host:port` (port optional) into an [`Upstream`].
 #[must_use]
 pub fn parse_upstream(addr: &str) -> Upstream {
@@ -89,12 +115,7 @@ impl Proxy {
         let url = upstream.url_for(&path_and_query);
         let estimator = Arc::clone(estimator);
 
-        let mut headers = HeaderMap::new();
-        for (name, value) in req.headers().iter() {
-            if !HOP_BY_HOP.contains(&name.to_ascii_lowercase().as_str()) {
-                headers.append(name, value.clone());
-            }
-        }
+        let mut headers = end_to_end_headers(req.headers());
         if let Some(peer) = req.peer_addr() {
             let ip = peer.ip().to_string();
             let forwarded = match req
@@ -120,12 +141,8 @@ impl Proxy {
         match tokio::time::timeout(self.timeout, call).await {
             Ok(Ok(upstream_resp)) => {
                 estimator.observe(started.elapsed().as_secs_f64());
-                let mut out = Response::new(upstream_resp.status, upstream_resp.body);
-                for (name, value) in upstream_resp.headers.iter() {
-                    if !HOP_BY_HOP.contains(&name.to_ascii_lowercase().as_str()) {
-                        out.headers.append(name, value.clone());
-                    }
-                }
+                let mut out = Response::new(upstream_resp.status, upstream_resp.body.clone());
+                out.headers = end_to_end_headers(&upstream_resp.headers);
                 out
             }
             Ok(Err(e)) => Response::new(StatusCode::BAD_GATEWAY, format!("upstream error: {e}")),
