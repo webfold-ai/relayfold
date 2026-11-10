@@ -9,11 +9,11 @@ license = "Apache-2.0"
 wirefold = { version = "0.1.0", git = "https://github.com/webfold-ai/wirefold", rev = "ba9a71284844cd1a7f14ae3b7105ad972aaa9e07", default-features = false, features = ["codec", "derive"] }
 # Identity: `transport::dialkey::native_keypair` derives the Ed25519 keypair from a dialkey,
 # `transport::signed_dns::{Keypair, PublicKey}` sign/verify. Pinned by rev like the servelet deps.
-# 596d70b is transport on apeiron (Ptyktos/transport#15): `dialkey::peer_id` returns the PUBLIC key (it returned the
+# 9b3131f is transport on apeiron (Ptyktos/transport#15, merged): `dialkey::peer_id` returns the PUBLIC key (it returned the
 # secret seed up to 30fdaf7). transport itself
 # pins relayfold at b50b9e1, not this one: a commit cannot name
 # itself. Default features stay on; this crate has not been built with `--no-default-features`.
-transport = { git = "https://github.com/Ptyktos/transport", rev = "596d70b60b94757a8a513a8d7c9523dee1f2ee14" }
+transport = { git = "https://github.com/Ptyktos/transport", rev = "9b3131f0b6f7aa33a3427a2df908186271a0ffeb" }
 # The durable append log (CRC32-framed, fsync policy, torn-tail truncation on open). It is a
 # sibling crate inside the sangdb repo; the `sangdb` crate itself is no longer used here.
 sangdb-log = { git = "https://github.com/Ptyktos/sangdb", rev = "bb76e6c487e4d33c6d41c57fdc11be36c627bc5e" }
