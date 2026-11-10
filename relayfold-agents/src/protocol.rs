@@ -15,12 +15,12 @@
 //! production traffic would want a persistent, request-ID-tagged multiplexed stream instead; that
 //! is a disclosed follow-up; this establishes the contract, not the final performance shape.
 
+use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 use wirefold::base64::engine::general_purpose::STANDARD_NO_PAD;
 use wirefold::base64::Engine;
 use wirefold::codec::syntax::{
     field, field_num, field_str, term_str, AsTerm, Atom, Surface, SyntaxError, SyntaxTerm,
 };
-use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 
 /// Which point in the request/response lifecycle this call represents — mirrors the phase names
 /// a `ProxyHttp`-shaped caller already has (`request_filter`/`upstream_response_filter`/etc.),

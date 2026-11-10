@@ -26,8 +26,8 @@
 //! original tests were written against `Proxy`'s full surface; they're ported here against
 //! `Registry` instead — behavior-identical for everything that doesn't touch HTTP.
 
-use wirefold::{Coord, CoordMap, PHI};
 use std::sync::Arc;
+use wirefold::{Coord, CoordMap, PHI};
 
 // ── Zanzibar/SpiceDB-style temporal relationship store ──────────────────────────────────────
 

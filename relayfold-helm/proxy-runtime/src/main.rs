@@ -1,18 +1,17 @@
-//! A minimal, real reverse-proxy binary over `biota-http-server`'s own `Router`/`Proxy`.
+//! A minimal, real reverse-proxy binary over servelet's `Router` and `relayfold_proxy_runtime::Proxy`.
 //!
-//! `biota-http-server` ships as a library only — nothing in the biota workspace instantiates a
-//! `Router` and calls `serve()` as a standalone deployable service. `relayfold-helm`'s chart needs
-//! a real container image to deploy, so this exists: `/healthz` and `/readyz` for Kubernetes
-//! probes, and a catch-all fallback that forwards everything else through `Proxy::handle` to one
-//! configured upstream (`Upstream::http`/`Upstream::https`, registered under the wildcard route
-//! `"*"`, which `Proxy::pick`'s own fallback rule already treats as "any route with no more
-//! specific match" — no new routing logic invented here).
+//! `relayfold-helm`'s chart needs a real container image to deploy, so this exists: `/healthz` and
+//! `/readyz` for Kubernetes probes, and a catch-all fallback that forwards everything else through
+//! `Proxy::handle` to the configured upstream pool (registered under the wildcard route `"*"`).
 //!
 //! Config is env-var-only, on purpose: a container image's real config surface. No config file
 //! parser here — `relayfold-chart-tool` (this repo's sibling crate) is where YAML config gets
 //! parsed/validated, kept separate from this runtime binary.
 
-use biota_http_server::{LoadBalance, Proxy, Request, Response, Router, Upstream};
+use relayfold::LoadBalance;
+use relayfold_proxy_runtime::Proxy;
+use servelet_core::{Request, Response};
+use servelet_router::Router;
 use std::env;
 use std::sync::{Arc, RwLock};
 
@@ -30,9 +29,16 @@ struct InstanceLite {
 }
 
 async fn reqwest_like_get(url: &str) -> Option<Vec<InstanceLite>> {
-    // biota's Client: GET + json decode. {"instances":[...]} shape per
+    // servelet's Client: GET + json decode. {"instances":[...]} shape per
     // relayfold-control's InstanceView list.
-    let body = biota_http_server::Client::new().get(url).send().await.ok()?.text().await.ok()?;
+    let body = servelet_client::Client::new()
+        .get(url)
+        .send()
+        .await
+        .ok()?
+        .text()
+        .await
+        .ok()?;
     let v: serde_json::Value = serde_json::from_str(&body).ok()?;
     let arr = v.get("instances")?.as_array()?.clone();
     Some(
@@ -49,19 +55,10 @@ async fn reqwest_like_get(url: &str) -> Option<Vec<InstanceLite>> {
 
 fn build_pool(lb: LoadBalance, addrs: &[String]) -> (Proxy, tokio::task::JoinHandle<()>) {
     let hc_path = env_or("HEALTH_CHECK_PATH", "/healthz");
-    let hc_secs: u64 = env_or("HEALTH_CHECK_INTERVAL_SECS", "10").parse().unwrap_or(10);
-    let mut proxy = Proxy::new().load_balance(lb);
-    for a in addrs {
-        let u = if let Some(hostport) = a.strip_prefix("https://") {
-            let (h, p) = hostport.rsplit_once(':').unwrap_or((hostport, "443"));
-            Upstream::https(h, p.parse().unwrap_or(443))
-        } else {
-            let a = a.trim_start_matches("http://");
-            let (h, p) = a.rsplit_once(':').unwrap_or((a, "80"));
-            Upstream::http(h, p.parse().unwrap_or(80))
-        };
-        proxy = proxy.upstream("*", u);
-    }
+    let hc_secs: u64 = env_or("HEALTH_CHECK_INTERVAL_SECS", "10")
+        .parse()
+        .unwrap_or(10);
+    let proxy = Proxy::new(lb, addrs);
     let handle = proxy.spawn_health_checks(hc_path, std::time::Duration::from_secs(hc_secs.max(1)));
     (proxy, handle)
 }
@@ -73,10 +70,6 @@ fn env_or(key: &str, default: &str) -> String {
 #[tokio::main]
 async fn main() {
     let listen_addr = env_or("LISTEN_ADDR", "0.0.0.0:8080");
-    let upstream_host = env_or("UPSTREAM_HOST", "127.0.0.1");
-    let upstream_port: u16 = env_or("UPSTREAM_PORT", "8081")
-        .parse()
-        .expect("UPSTREAM_PORT must be a valid u16");
     let upstream_scheme = env_or("UPSTREAM_SCHEME", "http");
     // Pool source, in order: (1) RELAYFOLD_CONTROL_URL — poll the control
     // plane's /instances every REFRESH_SECS and rebuild the pool from healthy
@@ -119,7 +112,7 @@ async fn main() {
                 .unwrap_or_else(|e| panic!("TLS_CERT_PEM_PATH unreadable: {e}"));
             let key = std::fs::read_to_string(&key_path)
                 .unwrap_or_else(|e| panic!("TLS_KEY_PEM_PATH unreadable: {e}"));
-            Some(biota_http_server::tls_server_config(&chain, &key)
+            Some(servelet_tls::tls_server_config(&chain, &key)
                 .expect("invalid TLS cert/key PEM"))
         }
         (None, None) => None,
@@ -144,26 +137,12 @@ async fn main() {
         upstream_addrs.push(format!("{upstream_scheme}://{host}:{port}"));
     }
 
-    let upstreams: Vec<Upstream> = upstream_addrs
-        .iter()
-        .map(|a| {
-            if let Some(hostport) = a.strip_prefix("https://") {
-                let (h, p) = hostport.rsplit_once(':').unwrap_or((hostport, "443"));
-                Upstream::https(h, p.parse().unwrap_or(443))
-            } else {
-                let a = a.trim_start_matches("http://");
-                let (h, p) = a.rsplit_once(':').unwrap_or((a, "80"));
-                Upstream::http(h, p.parse().unwrap_or(80))
-            }
-        })
-        .collect();
-
     let (proxy, mut health_handle) = build_pool(lb_algo, &upstream_addrs);
     let shared: SharedProxy = Arc::new(RwLock::new(proxy));
     println!(
         "relayfold-proxy listening on {listen_addr} (tls: {}), lb {lb_algo:?} across {} upstream(s): {:?}",
         tls.is_some(),
-        upstreams.len(),
+        upstream_addrs.len(),
         upstream_addrs
     );
 
@@ -179,13 +158,18 @@ async fn main() {
             loop {
                 tokio::time::sleep(std::time::Duration::from_secs(refresh_secs.max(1))).await;
                 let url = format!("{base}/instances");
-                let Some(resp) = reqwest_like_get(&url).await else { continue };
+                let Some(resp) = reqwest_like_get(&url).await else {
+                    continue;
+                };
                 let fresh: Vec<String> = resp
                     .iter()
                     .filter(|i| i.healthy)
                     .map(|i| {
-                        if i.addr.starts_with("http") { i.addr.clone() }
-                        else { format!("http://{}", i.addr) }
+                        if i.addr.starts_with("http") {
+                            i.addr.clone()
+                        } else {
+                            format!("http://{}", i.addr)
+                        }
                     })
                     .collect();
                 if fresh.is_empty() {
@@ -218,10 +202,10 @@ async fn main() {
         });
 
     match tls {
-        Some(tls_config) => biota_http_server::serve_tls(listen_addr, router, tls_config)
+        Some(tls_config) => servelet_tls::serve_tls(listen_addr, router, tls_config)
             .await
             .expect("serve_tls failed"),
-        None => biota_http_server::serve(listen_addr, router)
+        None => servelet_h1::serve(listen_addr, router)
             .await
             .expect("serve failed"),
     }

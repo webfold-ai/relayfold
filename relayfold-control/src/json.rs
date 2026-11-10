@@ -19,8 +19,8 @@
 
 use std::fmt;
 
-use wirefold::codec::syntax::{AsTerm, Surface, SyntaxTerm as Term};
 use servelet_core::{Request, Response, StatusCode};
+use wirefold::codec::syntax::{AsTerm, Surface, SyntaxTerm as Term};
 
 /// A JSON body, typed. `Json<T>(T)` mirrors actix's `web::Json<T>` so handler code ports by
 /// changing one import rather than being rewritten.

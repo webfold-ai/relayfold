@@ -6,7 +6,6 @@
 mod common;
 
 use common::*;
-use wirefold::codec::syntax::{parse_surface, AsTerm, Atom, Surface, SyntaxTerm};
 use relayfold_control::auth::{public_key_of, Signer};
 use relayfold_control::config::verify_config;
 use relayfold_control::{AppState, Clock, ControlPlane};
@@ -14,6 +13,7 @@ use servelet_client::Client;
 use servelet_core::StatusCode;
 use std::sync::Arc;
 use tokio::sync::Mutex;
+use wirefold::codec::syntax::{parse_surface, AsTerm, Atom, Surface, SyntaxTerm};
 
 fn term_of(body: &str) -> SyntaxTerm {
     parse_surface(Surface::Json, body).expect("valid JSON response")
