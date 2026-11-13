@@ -6,7 +6,7 @@ description = "A fleet-management control plane for relayfold-based proxy instan
 license = "Apache-2.0"
 
 [dependencies]
-wirefold = { version = "0.1.0", git = "https://github.com/webfold-ai/wirefold", rev = "e4fde11d9e7258ab017d0427024d7c272daa26f2", default-features = false, features = ["codec", "derive"] }
+wirefold = { version = "0.1.0", git = "https://github.com/webfold-ai/wirefold", rev = "98df8bfb8051fb24ca43ce3ddc446641684ef8f9", default-features = false, features = ["codec", "derive"] }
 # Identity: `transport::dialkey::native_keypair` derives the Ed25519 keypair from a dialkey,
 # `transport::signed_dns::{Keypair, PublicKey}` sign/verify. Pinned by rev like the servelet deps.
 # 01b1dca is transport on apeiron (Ptyktos/transport#15 and #17, merged): `dialkey::peer_id` returns the PUBLIC key (it returned the
@@ -19,10 +19,10 @@ transport = { git = "https://github.com/Ptyktos/transport", rev = "26dae21cea330
 sangdb-log = { git = "https://github.com/Ptyktos/sangdb", rev = "21101bdc49bc1a0c30dfe65099397c55091960b9" }
 # The HTTP kernel is servelet (Ptyktos/servelet), pinned by rev per
 # servelet/docs/MIGRATION.md. core/router are the spine; client is the outbound half.
-servelet-core = { git = "https://github.com/Ptyktos/servelet.git", rev = "ad8a0d88cb7867cffcdaa83ccf9afabd87730e65" }
-servelet-router = { git = "https://github.com/Ptyktos/servelet.git", rev = "ad8a0d88cb7867cffcdaa83ccf9afabd87730e65" }
-servelet-client = { git = "https://github.com/Ptyktos/servelet.git", rev = "ad8a0d88cb7867cffcdaa83ccf9afabd87730e65" }
-servelet-h1 = { git = "https://github.com/Ptyktos/servelet.git", rev = "ad8a0d88cb7867cffcdaa83ccf9afabd87730e65" }
+servelet-core = { git = "https://github.com/Ptyktos/servelet.git", rev = "fbaaaadc2d64236f8f2f3079bd9fde2dbd4a52bb" }
+servelet-router = { git = "https://github.com/Ptyktos/servelet.git", rev = "fbaaaadc2d64236f8f2f3079bd9fde2dbd4a52bb" }
+servelet-client = { git = "https://github.com/Ptyktos/servelet.git", rev = "fbaaaadc2d64236f8f2f3079bd9fde2dbd4a52bb" }
+servelet-h1 = { git = "https://github.com/Ptyktos/servelet.git", rev = "fbaaaadc2d64236f8f2f3079bd9fde2dbd4a52bb" }
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "sync", "time", "io-util"] }
 
 [dev-dependencies]
