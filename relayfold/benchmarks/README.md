@@ -58,7 +58,7 @@ records the Relayfold revision and target-manifest hash, and stores
 the wall-time campaign in spbench's configured `SANG_CODSPEED_DB`:
 
 ```sh
-SPBENCH=/path/to/sang-codspeed \
+SPBENCH=/path/to/spbench \   # `cargo install --path caretaker-spbench` from Ptyktos/caretaker
 SANG_CODSPEED_DB=/var/lib/relayfold-bench \
 /path/to/relayfold-bench/scripts/run_spbench_campaign.sh \
     benchmarks/http-targets.local-matrix.json \
