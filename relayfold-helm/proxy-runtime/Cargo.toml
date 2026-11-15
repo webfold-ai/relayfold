@@ -17,9 +17,9 @@ path = "src/main.rs"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 relayfold = { path = "../../relayfold" }
-servelet-core = { version = "0.1.0", git = "https://github.com/Ptyktos/servelet", rev = "fbaaaadc2d64236f8f2f3079bd9fde2dbd4a52bb" }
-servelet-router = { version = "0.1.0", git = "https://github.com/Ptyktos/servelet", rev = "fbaaaadc2d64236f8f2f3079bd9fde2dbd4a52bb" }
-servelet-h1 = { version = "0.1.0", git = "https://github.com/Ptyktos/servelet", rev = "fbaaaadc2d64236f8f2f3079bd9fde2dbd4a52bb" }
-servelet-tls = { version = "0.1.0", git = "https://github.com/Ptyktos/servelet", rev = "fbaaaadc2d64236f8f2f3079bd9fde2dbd4a52bb" }
-servelet-client = { version = "0.1.0", git = "https://github.com/Ptyktos/servelet", rev = "fbaaaadc2d64236f8f2f3079bd9fde2dbd4a52bb" }
+servelet-core = { version = "0.1.0", git = "https://github.com/Ptyktos/servelet", rev = "de55c03a332c5680a4b6032f75531a5a5826ecaf" }
+servelet-router = { version = "0.1.0", git = "https://github.com/Ptyktos/servelet", rev = "de55c03a332c5680a4b6032f75531a5a5826ecaf" }
+servelet-h1 = { version = "0.1.0", git = "https://github.com/Ptyktos/servelet", rev = "de55c03a332c5680a4b6032f75531a5a5826ecaf" }
+servelet-tls = { version = "0.1.0", git = "https://github.com/Ptyktos/servelet", rev = "de55c03a332c5680a4b6032f75531a5a5826ecaf" }
+servelet-client = { version = "0.1.0", git = "https://github.com/Ptyktos/servelet", rev = "de55c03a332c5680a4b6032f75531a5a5826ecaf" }
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "signal", "time"] }
