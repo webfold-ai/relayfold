@@ -8,7 +8,7 @@ license = "Apache-2.0"
 [dependencies]
 # `codec` for SyntaxTerm/Surface::Json (the wire format — see WHY-NOT-SERDE_JSON in lib.rs).
 # Request/response bodies travel as JSON-safe base64 strings.
-wirefold = { version = "0.1.0", git = "https://github.com/webfold-ai/wirefold", rev = "98df8bfb8051fb24ca43ce3ddc446641684ef8f9", default-features = false, features = ["codec"] }
+wirefold = { version = "0.1.0", git = "https://github.com/webfold-ai/wirefold", rev = "28d875794d4541eb952d23984be411348dc3f1c0", default-features = false, features = ["codec"] }
 tokio = { version = "1", default-features = false, features = ["net", "io-util", "rt", "rt-multi-thread", "macros", "sync", "time"] }
 
 [dev-dependencies]

@@ -6,23 +6,23 @@ description = "A fleet-management control plane for relayfold-based proxy instan
 license = "Apache-2.0"
 
 [dependencies]
-wirefold = { version = "0.1.0", git = "https://github.com/webfold-ai/wirefold", rev = "98df8bfb8051fb24ca43ce3ddc446641684ef8f9", default-features = false, features = ["codec", "derive"] }
+wirefold = { version = "0.1.0", git = "https://github.com/webfold-ai/wirefold", rev = "28d875794d4541eb952d23984be411348dc3f1c0", default-features = false, features = ["codec", "derive"] }
 # Identity: `transport::dialkey::native_keypair` derives the Ed25519 keypair from a dialkey,
 # `transport::signed_dns::{Keypair, PublicKey}` sign/verify. Pinned by rev like the servelet deps.
-# 01b1dca is transport on apeiron (Ptyktos/transport#15 and #17, merged): `dialkey::peer_id` returns the PUBLIC key (it returned the
-# secret seed up to 30fdaf7). transport itself
-# pins relayfold at b50b9e1, not this one: a commit cannot name
-# itself. Default features stay on; this crate has not been built with `--no-default-features`.
-transport = { git = "https://github.com/Ptyktos/transport", rev = "26dae21cea3305e4e7faf77ab82c77170cfdb8f5" }
+# 841ef57 is transport on apeiron 85b404b, pinning relayfold ef73381 (wirefold 28d8757): `dialkey::peer_id` returns the
+# PUBLIC key (it returned the secret seed up to 30fdaf7). transport itself pins relayfold at ef73381, not
+# this commit: a commit cannot name itself, and the [patch] in the workspace root maps that pin to the local
+# copy, so the graph holds one relayfold. Default features stay on; this crate has not been built with `--no-default-features`.
+transport = { git = "https://github.com/Ptyktos/transport", rev = "841ef57b78a08a7cf105a3ad58f4a8f07970770b" }
 # The durable append log (CRC32-framed, fsync policy, torn-tail truncation on open). It is a
 # sibling crate inside the sangdb repo; the `sangdb` crate itself is no longer used here.
 sangdb-log = { git = "https://github.com/Ptyktos/sangdb", rev = "21101bdc49bc1a0c30dfe65099397c55091960b9" }
 # The HTTP kernel is servelet (Ptyktos/servelet), pinned by rev per
 # servelet/docs/MIGRATION.md. core/router are the spine; client is the outbound half.
-servelet-core = { git = "https://github.com/Ptyktos/servelet.git", rev = "fbaaaadc2d64236f8f2f3079bd9fde2dbd4a52bb" }
-servelet-router = { git = "https://github.com/Ptyktos/servelet.git", rev = "fbaaaadc2d64236f8f2f3079bd9fde2dbd4a52bb" }
-servelet-client = { git = "https://github.com/Ptyktos/servelet.git", rev = "fbaaaadc2d64236f8f2f3079bd9fde2dbd4a52bb" }
-servelet-h1 = { git = "https://github.com/Ptyktos/servelet.git", rev = "fbaaaadc2d64236f8f2f3079bd9fde2dbd4a52bb" }
+servelet-core = { git = "https://github.com/Ptyktos/servelet.git", rev = "de55c03a332c5680a4b6032f75531a5a5826ecaf" }
+servelet-router = { git = "https://github.com/Ptyktos/servelet.git", rev = "de55c03a332c5680a4b6032f75531a5a5826ecaf" }
+servelet-client = { git = "https://github.com/Ptyktos/servelet.git", rev = "de55c03a332c5680a4b6032f75531a5a5826ecaf" }
+servelet-h1 = { git = "https://github.com/Ptyktos/servelet.git", rev = "de55c03a332c5680a4b6032f75531a5a5826ecaf" }
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "sync", "time", "io-util"] }
 
 [dev-dependencies]
