@@ -1,25 +1,24 @@
-//! `relayfold-agents` — a real, crash-isolated external agent protocol + Rust SDK for
-//! `relayfold`-based proxies (bedrock's/biota's `Proxy`/`ProxyHttp`, or anything else built on
-//! `relayfold::Registry`).
+//! `relayfold-agents` — a crash-isolated external agent protocol, and its Rust SDK, for
+//! proxies built on `relayfold`'s registry (or on anything else with a request-filter hook).
 //!
-//! **Why this exists**: researching github.com/zentinelproxy (a Rust reverse proxy on Pingora)
-//! surfaced its one real architectural differentiator over our own bedrock/biota `Proxy` —
-//! security/policy logic runs in external, crash-isolated agent PROCESSES over a UDS/gRPC wire
-//! protocol, not as in-process trait impls. A bug in a WAF agent can't take the dataplane down
-//! with it; an agent can be restarted, redeployed, or written in a different language without
-//! touching the proxy binary at all. Our `ProxyHttp` trait (bedrock's/biota's) has none of that —
-//! every extension is compiled into the same process as the proxy itself. This crate is an
-//! ORIGINAL implementation of that same idea (not zentinel's code — their agent-protocol/
-//! agent-rust-sdk crates aren't vendored or copied; only the architectural pattern is borrowed),
-//! sized to what's genuinely buildable and testable in one sitting: a real UDS wire protocol
-//! (`protocol.rs`), an `Agent` trait + runner (the "SDK" half), and a client any `ProxyHttp`-style
-//! caller can use to consult an agent mid-request.
+//! **What this is for.** The obvious way to extend a proxy is a trait: implement it, compile it
+//! into the proxy, done. That couples the extension's failure to the proxy's — a segmentation
+//! fault, an infinite loop or a memory leak in a WAF agent takes the data plane down with it,
+//! and redeploying the agent means redeploying the proxy.
 //!
-//! **What's deliberately NOT here yet** (disclosed, not silently skipped): a gRPC transport
-//! (UDS only), a persistent/multiplexed connection (one-shot per call — see `protocol.rs`'s own
-//! doc), a multi-language SDK story (Rust only — zentinel ships 7), and actual wiring into
-//! bedrock's/biota's `ProxyHttp` phases (this crate is transport+SDK; wiring it into a specific
-//! `Proxy` impl's `request_filter` is the natural next step, not done here).
+//! Running the extension as a **separate process over a socket** fixes that by construction: a
+//! crashed agent is restarted, redeployed, or rewritten in another language without touching
+//! the proxy binary; the data plane keeps serving and the agent's verdict is simply missing,
+//! which is a decision the caller makes; and the proxy's request path never blocks on the
+//! agent's memory.
+//!
+//! The architectural pattern is borrowed; the implementation here is original — no third-party
+//! agent-protocol crate is vendored or copied.
+//!
+//! **Scope, stated plainly.** A UDS transport only (no gRPC), one connection per call (no
+//! persistent or multiplexed connection), and Rust only (the wire format is the contract if
+//! another language wants to speak it). Wiring an agent into a particular proxy's request
+//! filter is a separate piece of work; this crate is the transport and the SDK.
 
 pub mod protocol;
 

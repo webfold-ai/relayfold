@@ -1,30 +1,28 @@
-//! `relayfold` — the temporal Zanzibar-style relationship store, and the Pingora-shaped
-//! upstream/load-balancing/health-check core, extracted for real out of `bedrock`.
+//! `relayfold` — the temporal Zanzibar-style relationship store, and the upstream
+//! load-balancing and health-check core that sits on top of it.
 //!
-//! **Extraction history, disclosed precisely**: `bedrock/src/native_lib/proxy.rs` claims (in its
-//! own module doc) to be `include!`'d into `native_lib.rs` — that's stale; no such `include!`
-//! exists anymore, and that file is dead, unreferenced code. The REAL, live implementation lives
-//! directly inline in `bedrock/src/native_lib.rs` (a 5,559-line file: a full hand-rolled HTTP
-//! client + server + generic router, THEN this data-plane layer on top). This crate is that real,
-//! live code — `Tuple`/`Relationships` (lines 3173–3446 there) and `Upstream`/`LoadBalance`/
-//! `HealthEstimator`/`Backends` (3447–3712) — moved verbatim, not reimplemented.
+//! Two cores that a reverse proxy usually ends up writing for itself:
 //!
-//! **What did NOT come along, and why**: bedrock's `Proxy` (the full request-forwarding driver,
-//! `ProxyHttp` trait, real `handle`/`handle_with`) needs bedrock's own hand-rolled HTTP `Client`
-//! (with real connection pooling) plus `Request`/`Response`/`HeaderMap`/etc. — and beyond that,
-//! cross-references into `crate::httpsrv::{httpx,actix}` (cookies/multipart/HTTP2/SSE),
-//! `crate::platform::service` (a tower-equivalent Layer/Service trait system), and
-//! `crate::runtime::{cache,graceful,metrics,cluster}` (a separate 4,821-line file). That's a
-//! genuinely large, separate, multi-module extraction — not rushed here. What ships in THIS
-//! crate is the self-contained core: given a set of upstreams and an algorithm, which one to
-//! pick, gated on real active+passive health.
+//! * **Relationships.** Zanzibar-style tuples with a validity window, a reason and a weight.
+//!   A relation is *invalidated*, not deleted, so a store that forgets a superseded fact cannot
+//!   answer "what did we think last Tuesday", and an extracted fact has somewhere to put *why*.
+//!   The coordinate map answers "does this tuple hold" in O(1) — the hash *is* the tuple — and
+//!   the enumerable copy beside it is what makes `Expand` and `LookupSubjects` possible.
 //!
-//! **`Registry`** is new — a thin wrapper (route → `Backends`, plus `Relationships` and a
-//! `LoadBalance` algorithm) mirroring the route/upstream/pick/allow surface bedrock's `Proxy`
-//! exposes MINUS its HTTP-forwarding half (`handle`/`handle_with`/`cache`/`spawn_health_checks`,
-//! all of which need the real HTTP client this crate deliberately doesn't bring along). The
-//! original tests were written against `Proxy`'s full surface; they're ported here against
-//! `Registry` instead — behavior-identical for everything that doesn't touch HTTP.
+//! * **Selection.** Given a set of upstreams and an algorithm, which one to pick, gated on
+//!   real active *and* passive health. `LoadBalance` covers round-robin, random, weighted and
+//!   consistent-hash selection; `HealthEstimator` carries a latency estimate per upstream whose
+//!   update is commutative and order-free, so concurrent updates never coordinate on ordering.
+//!
+//! **Scope, stated plainly.** This crate is the data plane's *core*: which upstream, gated on
+//! what health, and which relationships hold. The request-forwarding driver — connection
+//! pooling, streaming bodies, the layer that ties them together — is not here, and neither is
+//! an HTTP client; a consumer that forwards requests holds one of these (or reimplements this
+//! same shape) rather than re-deriving route-to-backend registration and picking a second time.
+//!
+//! **`Registry`** is the composition: route registration, the upstream list, the selection
+//! algorithm and the relationship store, with `pick_index` as the selection itself — one hash,
+//! one solve, one pick.
 
 use std::sync::Arc;
 use wirefold::{Coord, CoordMap, PHI};
@@ -450,9 +448,9 @@ impl Default for HealthEstimator {
 }
 
 /// splitmix64 — a tiny, dependency-free, well-known mixing step. Not cryptographic; fine for
-/// load-balancing spread, which is all it's used for here. `pub`: bedrock's own session-ID
-/// generator (unrelated to load balancing) reuses this exact function rather than carrying a
-/// second copy of the same four lines.
+/// load-balancing spread, which is all it's used for here. It is `pub` because a session-ID
+/// generator in the same family reuses this exact function rather than carrying a second copy
+/// of the same four lines.
 pub fn splitmix64(x: u64) -> u64 {
     let x = x.wrapping_add(0x9E37_79B9_7F4A_7C15);
     let z = (x ^ (x >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
@@ -626,11 +624,10 @@ impl Backends {
     }
 }
 
-/// Route registration + load-balanced picking + the relationship store, WITHOUT bedrock's HTTP
-/// forwarding half (`Proxy::handle`/`handle_with`/`cache`/`spawn_health_checks`) — see the module
-/// doc for exactly why that half didn't come along. A real HTTP-forwarding `Proxy` built later
-/// should hold one of these (or reimplement this same shape) rather than re-deriving
-/// route→backend registration and picking a second time.
+/// Route registration + load-balanced picking + the relationship store, WITHOUT the HTTP
+/// forwarding half — see the module doc for exactly why that half is not here. A consumer that
+/// forwards requests should hold one of these (or reimplement this same shape) rather than
+/// re-deriving route→backend registration and picking a second time.
 #[derive(Clone, Debug, Default)]
 pub struct Registry {
     upstreams: CoordMap<u64, Backends>,
@@ -874,8 +871,8 @@ mod tests {
             .check("user:alice", "admin", "route:/admin"));
     }
 
-    /// Proof RoundRobin actually cycles, not just "load balancing" in name only (the bug the
-    /// original bedrock upgrade fixed: `pick()` used to always return the first upstream).
+    /// Proof RoundRobin actually cycles, not just "load balancing" in name only (the bug this
+    /// replaced: `pick()` used to always return the first upstream).
     #[test]
     fn load_balance_round_robin_actually_cycles() {
         let registry = Registry::new()
@@ -964,8 +961,8 @@ mod tests {
 
     /// **Adapted from the original** (disclosed): the original test drove this end-to-end
     /// through real HTTP requests against real local servers with different response delays,
-    /// which needed bedrock's HTTP client (deliberately not extracted here — see the module
-    /// doc). This version fuses the same real latency numbers directly via `HealthEstimator`,
+    /// which needed an HTTP client this crate deliberately does not bring along — see the
+    /// module doc. This version fuses the same real latency numbers directly via `HealthEstimator`,
     /// via `pick()`'s own returned handle — proving `Healthiest`'s selection logic responds
     /// correctly to real observations, not proving the HTTP measurement path that would produce
     /// them in a real deployment.

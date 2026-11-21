@@ -2,8 +2,8 @@
 
 A fleet-management control plane for relayfold-based proxy instances — the Rust equivalent of
 zentinel's `zentinel-control-plane` (Elixir/Phoenix, self-declared Beta). No Elixir/Phoenix here:
-HTTP is `servelet` (`servelet-h1`/`-router`/`-client`), durability is `sangdb-log`, identity is the
-dialkey Ed25519 keypair from `transport`.
+HTTP is `servelet` (`servelet-h1`/`-router`/`-client`), durability is the `sangdb-log`
+append-only log, identity is the dialkey Ed25519 keypair from `transport`.
 
 ## What it does (tested end-to-end)
 
@@ -59,7 +59,8 @@ plane's critical section, so requests wait for it (a few ms; see the measurement
 * **Signed config**: the instance-side check is the pure function `config::verify_config(body,
   control_public_key, this_instance_id, last_applied_version)`; it rejects unsigned, wrong-key,
   tampered, wrong-target and old-`config_version` configs.
-* **Liveness** is a pure fold (`liveness::fold`: `Registered | Heartbeat | Expired(now)`), TTL
+* **Liveness** is computed by a pure function (`liveness::fold`: `Registered | Heartbeat |
+  Expired(now)`), TTL
   configurable, expired at read time — no sweeper. After a restart nothing is healthy until it
   heartbeats again (heartbeats are not logged).
 * **Durable**: an error-returning append path on `sangdb-log` (`fsync` per record, torn tail
@@ -110,13 +111,15 @@ the fleet; unset means nobody can, and the binary says so on stderr. `RELAYFOLD_
 overrides the 30 s heartbeat TTL; `RELAYFOLD_COMPACT_AFTER` the compaction threshold (default
 10 000 records, `0` disables). `RELAYFOLD_CONTROL_DIALKEY` signs pushed
 configs; agents verify with `auth::public_key_of(dialkey)`. The data dir holds `control.log`; a
-data dir written by the previous (sangdb `.seed` dump) version is ignored — that version bound no
-keys, so there is nothing to migrate.
+data dir written by the previous on-disk format is ignored — that version bound no keys, so there
+is nothing to migrate.
 
 ## Build and test
 
-`cargo test -p relayfold-control` from the workspace root. `servelet`'s `Cargo.toml` takes its
-`hashtrinity` from the private GitLab mirror (`gitlab.tas.twn.network/twn/ptyktos/hashtrinity`),
-so the machine running cargo needs git access to it (an `ssh` identity plus
-`url.git@gitlab.tas.twn.network:.insteadOf https://gitlab.tas.twn.network/`). `[patch]` and source
-replacement do not avoid this.
+`cargo test -p relayfold-control` from the workspace root.
+
+This member depends on **private** repositories — `servelet`, `sangdb-log` and `transport` — so
+the machine running cargo needs read access to them, and `servelet` in turn takes a dependency
+from a private git host. `[patch]` and source replacement do not avoid that. It is the reason
+the workspace's CI excludes this member: the graph does not resolve without those credentials,
+and cargo resolves the whole workspace graph, so it fails before compiling anything.
