@@ -1,4 +1,4 @@
-# Ptyktos API-gateway SWOT
+# API-gateway SWOT
 
 This is the product boundary for the benchmark work. `relayfold` is the routing and relationship primitive; `biota` is the HTTP/Pingora-style data plane; `conduit` federates upstream MCP services; `syndesi` is the tool/API host and policy-facing surface; `telos` makes authorization decisions and receipts; `agent-loop` executes approved actions. MCP is one adapter workload inside this gateway, not the gateway definition.
 
@@ -15,7 +15,7 @@ This is the product boundary for the benchmark work. `relayfold` is the routing 
 
 ## SWOT against Zentinel-style gateway products
 
-| | Ptyktos/Tasmanian ecosystem | Consequence |
+| | Our ecosystem | Consequence |
 |---|---|---|
 | Strengths | Native Rust ownership across data plane, federation, policy, receipts, and agent execution; Biota already has tested proxy primitives; capability composition is local/self-hosted | Can make one request identity and policy receipt span HTTP, MCP, agent action, and backend call instead of bolting agents onto a generic proxy |
 | Strengths | Conduit and Syndesi already cover MCP discovery/federation and HTTP/MCP surfaces; Telos and Agent Loop provide decision and execution seams | Stronger agent-aware gateway story than a standalone reverse proxy once the seams are wired into one runtime |

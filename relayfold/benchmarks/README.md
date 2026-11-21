@@ -1,10 +1,10 @@
-# Relayfold benchmarks — substrate-side docs and results
+# relayfold benchmarks — docs and results
 
 This directory used to host the full bench story: harness + subjects
 + configs + orchestrator scripts + results. As of the bench-extraction
 commit, the **bench machinery** lives in the dedicated
-[`Ptyktos/relayfold-bench`](https://github.com/Ptyktos/relayfold-bench)
-repo. What stays here is the substrate-side story:
+[`relayfold-bench`](https://github.com/webfold-ai/relayfold-bench)
+repo. What stays here is the docs and results side:
 
 - **Workload manifests** — `http-targets.example.json`,
   `http-targets.local-matrix.json`, `regression-cases.json`. These
@@ -13,7 +13,7 @@ repo. What stays here is the substrate-side story:
 - **The crosswalk** — `gateway-crosswalk.json`. The source of truth
   for the comparison: every candidate, every plane, every workload
   family, every measurement required.
-- **Strategic docs** — `PTYKTOS-GATEWAY-SWOT.md`, `EDGE-GATEWAYS.md`.
+- **Strategic docs** — `GATEWAY-SWOT.md`, `EDGE-GATEWAYS.md`.
   These are part of the relayfold story, not the bench story.
 - **Past results** — `RESULTS-2026-09-24*.md` and the `results/`
   directory. These document relayfold's bench history, versioned
@@ -22,11 +22,11 @@ repo. What stays here is the substrate-side story:
 ## Where the bench machinery lives
 
 ```
-Ptyktos/relayfold-bench/
+relayfold-bench/
 ├── src/                    # the Rust harness (Workload, Report, CLI)
 ├── subjects/
-│   └── biota-proxy/        # one of the bench subjects (was here in
-│                            #   relayfold/benchmarks/biota-proxy/)
+│   └── proxy/              # one of the bench subjects (was here in
+│                            #   relayfold/benchmarks/proxy/)
 ├── configs/                # competitor-subject configs
 │                            #   (envoy, haproxy, nginx, pingap,
 │                            #    traefik, zentinel)
@@ -38,7 +38,7 @@ Ptyktos/relayfold-bench/
 
 To run the bench from the relayfold repo, clone the
 `relayfold-bench` repo alongside it and follow the
-[`relayfold-bench` README](https://github.com/Ptyktos/relayfold-bench).
+[`relayfold-bench` README](https://github.com/webfold-ai/relayfold-bench).
 
 ## Crosswalk first
 
