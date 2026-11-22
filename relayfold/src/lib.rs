@@ -25,11 +25,11 @@
 //! one solve, one pick.
 
 use std::sync::Arc;
-use wirefold::{Coord, CoordMap, PHI};
 pub use transport::load_balance::{
     consistent_ring_index, coord_of, pick_index, splitmix64, HealthEstimator, LoadBalance,
     CONSISTENT_HASH_VNODES,
 };
+use wirefold::{Coord, CoordMap, PHI};
 
 // ── Zanzibar/SpiceDB-style temporal relationship store ──────────────────────────────────────
 
@@ -815,5 +815,4 @@ mod tests {
             );
         }
     }
-
 }
