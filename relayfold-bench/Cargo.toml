@@ -20,7 +20,7 @@ name = "servelet-static-server"
 path = "src/bin/servelet_static_server.rs"
 
 [dependencies]
-servelet-core = { version = "0.1.0", git = "https://github.com/Ptyktos/servelet", rev = "de55c03a332c5680a4b6032f75531a5a5826ecaf" }
-servelet-router = { version = "0.1.0", git = "https://github.com/Ptyktos/servelet", rev = "de55c03a332c5680a4b6032f75531a5a5826ecaf" }
-servelet-h1 = { version = "0.1.0", git = "https://github.com/Ptyktos/servelet", rev = "de55c03a332c5680a4b6032f75531a5a5826ecaf" }
+servelet-core = { version = "0.1.0", git = "https://github.com/Ptyktos/servelet", rev = "47cc623e1b86eb1e1c45f988dda98e81aeae86e2" }
+servelet-router = { version = "0.1.0", git = "https://github.com/Ptyktos/servelet", rev = "47cc623e1b86eb1e1c45f988dda98e81aeae86e2" }
+servelet-h1 = { version = "0.1.0", git = "https://github.com/Ptyktos/servelet", rev = "47cc623e1b86eb1e1c45f988dda98e81aeae86e2" }
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "io-util", "sync", "signal"] }
