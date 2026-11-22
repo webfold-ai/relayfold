@@ -1,4 +1,4 @@
-//! Durable state: an append-only log on `sangdb-log` (CRC32-framed records, `fsync` after every
+//! Durable state: an append-only log on `iotadb-log` (CRC32-framed records, `fsync` after every
 //! record, torn tail truncated to the longest valid prefix on open), plus a **snapshot** that
 //! [`compaction`](crate::compaction) writes so the log does not grow forever.
 //!
@@ -36,7 +36,7 @@
 
 use crate::auth::{Key, NonceEntry};
 use crate::compaction::{self, CompactionReport, Fs, RealFs, Step};
-use sangdb_log::{FileWriter, FsyncPolicy, Log, RecoveryReport};
+use iotadb_log::{FileWriter, FsyncPolicy, Log, RecoveryReport};
 use std::collections::{BTreeMap, VecDeque};
 use std::io;
 use std::path::{Path, PathBuf};
@@ -296,11 +296,11 @@ impl Snapshot {
 }
 
 fn frame(payload: &[u8]) -> Vec<u8> {
-    sangdb_log::build_record(0, payload).encode()
+    iotadb_log::build_record(0, payload).encode()
 }
 
 fn unframe(bytes: &[u8]) -> Result<Vec<u8>, io::Error> {
-    let (rec, used) = sangdb_log::decode_at(bytes, 0)
+    let (rec, used) = iotadb_log::decode_at(bytes, 0)
         .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, format!("snapshot frame: {e}")))?;
     if used != bytes.len() {
         return Err(io::Error::new(

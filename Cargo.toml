@@ -7,6 +7,7 @@ members = [
     "relayfold-control",
     "relayfold-helm/chart-tool",
     "relayfold-helm/proxy-runtime",
+    "relayfold-bench",
 ]
 
 [patch."https://github.com/Ptyktos/relayfold"]
@@ -15,3 +16,5 @@ members = [
 # resolve to the same package name and cargo reports "specification `relayfold` is ambiguous"
 # without this patch redirecting the git source to the local copy.
 relayfold = { path = "relayfold" }
+# TEMPORARY: remove this [patch] once transport no longer depends on relayfold (its load_balance
+# re-export is being dropped) and relayfold-control is repinned to that transport rev.

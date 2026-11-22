@@ -39,13 +39,12 @@ Two properties the alternatives do not give you:
 | `relayfold-convert` | [`relayfold-convert/`](relayfold-convert/) | nginx/HAProxy config → the relayfold YAML route format |
 | `relayfold-agents` | [`relayfold-agents/`](relayfold-agents/) | Crash-isolated external agent protocol + Rust SDK |
 | `relayfold-control` | [`relayfold-control/`](relayfold-control/) | Fleet-management control plane (registry, heartbeat, config push) |
+| `relayfold-bench` | [`relayfold-bench/`](relayfold-bench/) | Load-generation and latency harness for relayfold-based proxies |
 | `relayfold-chart-tool` | [`relayfold-helm/chart-tool/`](relayfold-helm/chart-tool/) | Validates/renders the Helm chart's values.yaml |
 | `relayfold-proxy-runtime` | [`relayfold-helm/proxy-runtime/`](relayfold-helm/proxy-runtime/) | Standalone reverse-proxy binary for the Helm chart to deploy |
 | — | [`relayfold-helm/chart/`](relayfold-helm/chart/) | The Helm chart itself (not a Rust crate) |
 
-Each member keeps its own README with crate-specific detail. `relayfold-bench` (the load-gen /
-latency harness) is a separate repository: it benchmarks this workspace from the outside and is
-not part of the build.
+Each member keeps its own README with crate-specific detail.
 
 ## Build
 
@@ -53,12 +52,12 @@ not part of the build.
 cargo build --workspace
 ```
 
-`relayfold-control` depends on `servelet`, whose manifest takes `hashtrinity` from a private
-git host, so the machine running cargo needs access to it — see
-[`relayfold-control/README.md`](relayfold-control/README.md#build-and-test). Without it `cargo`
-fails at dependency resolution, **before** compiling anything, and because cargo resolves the
-whole workspace graph that applies to every `cargo` command in the workspace, not only to that
-member.
+The workspace's git dependencies (`servelet`, `transport`, `iotadb`, `wirefold`, `apeiron`) are pinned by
+rev in each member's `Cargo.toml`, and cargo resolves the whole workspace graph, so every `cargo`
+command needs to be able to fetch them.
+
+Quickstart: `cargo test --workspace`, then `cargo run -p relayfold-bench --release -- / 10 8 name=host:port`
+to load-test a running server.
 
 ## Integration
 

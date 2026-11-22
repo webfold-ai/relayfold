@@ -1,0 +1,26 @@
+[package]
+name = "relayfold-bench"
+version = "0.1.0"
+edition = "2021"
+description = "Load-generation and latency harness for relayfold-based proxies, with real-vs-real comparisons against installable competitors (no fabricated numbers)"
+license = "Apache-2.0"
+
+[lib]
+name = "relayfold_bench"
+path = "src/lib.rs"
+
+[[bin]]
+name = "relayfold-bench"
+path = "src/main.rs"
+
+# A static-route subject built on servelet, so the harness has an in-ecosystem server to measure
+# without installing a competitor.
+[[bin]]
+name = "servelet-static-server"
+path = "src/bin/servelet_static_server.rs"
+
+[dependencies]
+servelet-core = { version = "0.1.0", git = "https://github.com/Ptyktos/servelet", rev = "de55c03a332c5680a4b6032f75531a5a5826ecaf" }
+servelet-router = { version = "0.1.0", git = "https://github.com/Ptyktos/servelet", rev = "de55c03a332c5680a4b6032f75531a5a5826ecaf" }
+servelet-h1 = { version = "0.1.0", git = "https://github.com/Ptyktos/servelet", rev = "de55c03a332c5680a4b6032f75531a5a5826ecaf" }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "io-util", "sync", "signal"] }

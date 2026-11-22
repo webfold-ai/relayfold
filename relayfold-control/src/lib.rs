@@ -2,7 +2,7 @@
 //! dialkey-signed registry, heartbeat expiry, signed config push, durable append log.
 //!
 //! Built from scratch for OUR proxy stack (relayfold/bedrock/biota) on `servelet` (HTTP) and
-//! `sangdb-log` (durability), as a Rust alternative to zentinel's Elixir/Phoenix control plane.
+//! `iotadb-log` (durability), as a Rust alternative to zentinel's Elixir/Phoenix control plane.
 //!
 //! # What it guarantees
 //!
@@ -16,7 +16,7 @@
 //!   instance-side check.
 //! * **Liveness** ([`liveness`]): a pure fold with a configurable TTL; an instance with no
 //!   heartbeat inside the TTL is not healthy in `list()`.
-//! * **Durability** ([`store`]): an error-returning append path on `sangdb-log`; identities, bound
+//! * **Durability** ([`store`]): an error-returning append path on `iotadb-log`; identities, bound
 //!   keys and `config_version` survive restart; a torn tail is truncated on open.
 //! * **Enrollment** ([`plane`]): `register` and `GET /instances` need a signer on the allowlist
 //!   (`ControlConfig::enrolled_keys`; empty = closed). A refused register is logged durably.
