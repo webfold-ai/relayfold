@@ -1,6 +1,6 @@
 //! Real, end-to-end tests: a real `servelet_h1` server on an ephemeral loopback port, a real
 //! `servelet_client`, real Ed25519 signatures, a real config-receiving mock instance on its own
-//! socket, and real `sangdb-log` persistence. The clock is injected (`ManualClock`) so expiry,
+//! socket, and real `iotadb-log` persistence. The clock is injected (`ManualClock`) so expiry,
 //! staleness and replay are exact, not slept.
 
 mod common;

@@ -14,10 +14,10 @@
 //! 10^6 events does not take hours; the bytes are exactly what the control plane's `EveryRecord`
 //! path writes. Compaction itself runs the real [`ControlPlane::compact`] with the real fsyncs.
 
+use iotadb_log::{FileWriter, FsyncPolicy, Log};
 use relayfold_control::auth::Key;
 use relayfold_control::store::{self, Record, Rejection, Replayed, LOG_FILE, SNAPSHOT_FILE};
 use relayfold_control::{ControlConfig, ControlPlane, ManualClock, Stages};
-use sangdb_log::{FileWriter, FsyncPolicy, Log};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Instant;

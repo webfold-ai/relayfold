@@ -2,7 +2,7 @@
 
 A fleet-management control plane for relayfold-based proxy instances — the Rust equivalent of
 zentinel's `zentinel-control-plane` (Elixir/Phoenix, self-declared Beta). No Elixir/Phoenix here:
-HTTP is `servelet` (`servelet-h1`/`-router`/`-client`), durability is the `sangdb-log`
+HTTP is `servelet` (`servelet-h1`/`-router`/`-client`), durability is the `iotadb-log`
 append-only log, identity is the dialkey Ed25519 keypair from `transport`.
 
 ## What it does (tested end-to-end)
@@ -63,7 +63,7 @@ plane's critical section, so requests wait for it (a few ms; see the measurement
   Expired(now)`), TTL
   configurable, expired at read time — no sweeper. After a restart nothing is healthy until it
   heartbeats again (heartbeats are not logged).
-* **Durable**: an error-returning append path on `sangdb-log` (`fsync` per record, torn tail
+* **Durable**: an error-returning append path on `iotadb-log` (`fsync` per record, torn tail
   truncated on open). Registered ids, their **bound keys** and the `config_version` counter survive
   restart, as does the enrollment audit trail. A failed append is a 500 and nothing is applied.
   The log is bounded by snapshot + truncate compaction (above).
@@ -118,8 +118,6 @@ is nothing to migrate.
 
 `cargo test -p relayfold-control` from the workspace root.
 
-This member depends on **private** repositories — `servelet`, `sangdb-log` and `transport` — so
-the machine running cargo needs read access to them, and `servelet` in turn takes a dependency
-from a private git host. `[patch]` and source replacement do not avoid that. It is the reason
-the workspace's CI excludes this member: the graph does not resolve without those credentials,
-and cargo resolves the whole workspace graph, so it fails before compiling anything.
+This member depends on `servelet`, `transport` and `iotadb` as git dependencies pinned by rev, so cargo
+needs to be able to fetch them. cargo resolves the whole workspace graph, so this applies to every
+member of the workspace.

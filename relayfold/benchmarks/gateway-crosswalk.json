@@ -3,7 +3,7 @@
   "purpose": "one workload and capability crosswalk for Rust and incumbent API gateways",
   "candidates": [
     {"id":"biota-relayfold","class":"rust-data-plane","http_target":"http://127.0.0.1:18080/1k","source":"benchmarks/biota-proxy"},
-    {"id":"syndesi-conduit","class":"ptyktos-gateway","http_target":null,"source":"/home/ctown/projects/twn-group/syndesi + /home/ctown/projects/conduit"},
+    {"id":"syndesi-conduit","class":"ptyktos-gateway","http_target":null,"source":"internal gateway (not published)"},
     {"id":"nginx","class":"incumbent","http_target":"http://127.0.0.1:18085/1k","source":"configs/nginx.conf"},
     {"id":"haproxy","class":"incumbent","http_target":"http://127.0.0.1:18086/1k","source":"configs/haproxy.cfg"},
     {"id":"envoy","class":"incumbent","http_target":"http://127.0.0.1:18087/1k","source":"configs/envoy.yaml"},

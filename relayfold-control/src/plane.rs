@@ -17,7 +17,7 @@ use crate::dto::{ConfigPushRequest, HeartbeatRequest, InstanceView, RegisterRequ
 use crate::liveness::{Liveness, LivenessEvent};
 use crate::stages::Stages;
 use crate::store::{self, Bound, Record, RecordSink, Rejection, Replayed, Snapshot, AUDIT_CAP};
-use sangdb_log::RecoveryReport;
+use iotadb_log::RecoveryReport;
 use std::collections::{BTreeMap, VecDeque};
 use std::io;
 use std::path::Path;

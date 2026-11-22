@@ -256,9 +256,9 @@ fn a_crc_valid_record_this_version_cannot_decode_refuses_to_start() {
     std::fs::create_dir_all(dir.path()).unwrap();
     let path = dir.path().join(LOG_FILE);
     {
-        let w = sangdb_log::FileWriter::open_append(&path).unwrap();
+        let w = iotadb_log::FileWriter::open_append(&path).unwrap();
         let (mut log, _) =
-            sangdb_log::Log::open(w, path.clone(), sangdb_log::FsyncPolicy::EveryRecord).unwrap();
+            iotadb_log::Log::open(w, path.clone(), iotadb_log::FsyncPolicy::EveryRecord).unwrap();
         log.append(&[0xEE, 1, 2, 3]).unwrap();
     }
     let err = store::open(dir.path())
