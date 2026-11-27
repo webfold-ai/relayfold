@@ -17,9 +17,9 @@ path = "src/main.rs"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 relayfold = { path = "../../relayfold" }
-servelet-core = { version = "0.1.0", git = "https://github.com/Ptyktos/servelet", rev = "47cc623e1b86eb1e1c45f988dda98e81aeae86e2" }
-servelet-router = { version = "0.1.0", git = "https://github.com/Ptyktos/servelet", rev = "47cc623e1b86eb1e1c45f988dda98e81aeae86e2" }
-servelet-h1 = { version = "0.1.0", git = "https://github.com/Ptyktos/servelet", rev = "47cc623e1b86eb1e1c45f988dda98e81aeae86e2" }
-servelet-tls = { version = "0.1.0", git = "https://github.com/Ptyktos/servelet", rev = "47cc623e1b86eb1e1c45f988dda98e81aeae86e2" }
-servelet-client = { version = "0.1.0", git = "https://github.com/Ptyktos/servelet", rev = "47cc623e1b86eb1e1c45f988dda98e81aeae86e2" }
+servelet-core = { version = "0.1.0", git = "https://github.com/webfold-ai/servelet", rev = "47cc623e1b86eb1e1c45f988dda98e81aeae86e2" }
+servelet-router = { version = "0.1.0", git = "https://github.com/webfold-ai/servelet", rev = "47cc623e1b86eb1e1c45f988dda98e81aeae86e2" }
+servelet-h1 = { version = "0.1.0", git = "https://github.com/webfold-ai/servelet", rev = "47cc623e1b86eb1e1c45f988dda98e81aeae86e2" }
+servelet-tls = { version = "0.1.0", git = "https://github.com/webfold-ai/servelet", rev = "47cc623e1b86eb1e1c45f988dda98e81aeae86e2" }
+servelet-client = { version = "0.1.0", git = "https://github.com/webfold-ai/servelet", rev = "47cc623e1b86eb1e1c45f988dda98e81aeae86e2" }
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "signal", "time"] }
